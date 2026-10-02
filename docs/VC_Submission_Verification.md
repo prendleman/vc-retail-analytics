@@ -1,8 +1,8 @@
 # VC Retail Analytics — submission verification notes
 
-**Date (UTC):** 2026-10-02T20:19Z (checks) / deck regenerated same day  
-**Checked commit family:** `700167c` plus subsequent local changes for submission polish  
-**Hosted image (pre-redeploy of cache-bust):** `deployment-01M3Z3M16C51X916VH35S9YVYM`  
+**Date (UTC):** 2026-10-02T20:19Z (checks) / deck + deploy same day (~20:28Z)  
+**Checked commit:** `b40c9f6` (pushed to `main`)  
+**Hosted redeploy:** confirmed after push (`flyctl deploy`; machine `d89510ea7d4e38` healthy)  
 **Demo URL:** https://vc.datasharkbi.com/  
 **Repository:** https://github.com/prendleman/vc-retail-analytics (public)
 
@@ -49,7 +49,7 @@ Command context: temporary DB via `seed(..., dealers=12…50)`, `ThreadingHTTPSe
 - Server already sends `Cache-Control: no-store` on responses.
 - Prior “hard-refresh for TSV UI” reflected an older Analytics renderer that was replaced by charts/tables. Stale browsers could still hold old `app.js`.
 - **Mitigation applied:** cache-busting query strings on CSS/JS (`?v=20261002b`) in HTML entry points. Hard-refresh is no longer instructed as a required step; a normal refresh after deploy should suffice.
-- Hosted redeploy of this mitigation should be confirmed after push/deploy of the polish commit.
+- Hosted redeploy completed for commit `b40c9f6`; Access still returns `302` without session (expected).
 
 ## Screenshots used in the revised PDF
 
