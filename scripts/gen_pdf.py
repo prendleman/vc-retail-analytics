@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""Submission PDF deck — VC Retail Analytics (clickable demo + GitHub URLs).
+"""Submission-revised PDF deck (evidence-backed, 10 core slides + appendix).
 
-Renders branded HTML → Chromium print-to-PDF (links work in Preview / Acrobat).
+Output:
+  docs/deck/VC_Retail_Analytics_Submission_Revised.pdf
+  docs/deck/VC_Retail_Analytics_Deck.html  (editable source mirror)
 """
 from __future__ import annotations
 
@@ -13,12 +15,15 @@ from playwright.sync_api import sync_playwright
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "docs" / "deck" / "assets"
 OUT_HTML = ROOT / "docs" / "deck" / "VC_Retail_Analytics_Deck.html"
-OUT_PDF = ROOT / "docs" / "deck" / "VC_Retail_Analytics_Deck.pdf"
+OUT_PDF = ROOT / "docs" / "deck" / "VC_Retail_Analytics_Submission_Revised.pdf"
+# Keep classic filename as copy for prior links
+OUT_PDF_ALIAS = ROOT / "docs" / "deck" / "VC_Retail_Analytics_Deck.pdf"
 DEMO_URL = os.environ.get("VC_DEMO_URL", "https://vc.datasharkbi.com/").rstrip("/") + "/"
 GITHUB_URL = os.environ.get(
     "VC_GITHUB_URL", "https://github.com/prendleman/vc-retail-analytics"
 ).rstrip("/")
-TOTAL = 13
+COMMIT = os.environ.get("VC_BUILD_COMMIT", "700167c+")
+TOTAL = 12  # 10 core + 2 appendix
 
 
 def uri(name: str) -> str:
@@ -35,468 +40,378 @@ def foot(n: int) -> str:
 
 def build_html() -> str:
     hero = uri("vc-hero-lighting.jpg")
-    still = uri("vc-product-still.jpg")
-    e2e = uri("wiring_e2e.png")
-    snow = uri("wiring_snowflake.png")
+    shot_m = uri("shot_analytics_margin.png")
+    shot_a = uri("shot_assistant_margin.png")
+    shot_o = uri("shot_overview.png")
     arch = uri("arch_flow.png")
-    metrics = uri("wiring_metrics.png")
-    ask = uri("wiring_ask.png")
-    gap = uri("gap_split.png")
-    ch = uri("chart_channel.png")
-    st = uri("chart_stock.png")
+    e2e = uri("wiring_e2e.png")
 
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>VC Retail Analytics — Submission</title>
+<title>VC Retail Analytics — Submission Revised</title>
 <style>
   @page {{ size: Letter landscape; margin: 0; }}
   * {{ box-sizing: border-box; }}
   html, body {{
-    margin: 0; padding: 0;
-    color: #1c1914;
+    margin: 0; padding: 0; color: #1c1914;
     font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
     background: #f3efe6;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }}
   .page {{
-    width: 11in; height: 8.5in;
-    page-break-after: always;
-    position: relative;
-    overflow: hidden;
-    background:
-      radial-gradient(900px 420px at 8% -10%, #fff8ea, transparent),
-      linear-gradient(180deg, #f7f2e8, #f3efe6);
+    width: 11in; height: 8.5in; page-break-after: always; position: relative; overflow: hidden;
+    background: radial-gradient(900px 420px at 8% -10%, #fff8ea, transparent),
+                linear-gradient(180deg, #f7f2e8, #f3efe6);
   }}
   .page:last-child {{ page-break-after: auto; }}
-  .page.dark {{ background: #1c1914; color: #f4efe4; }}
-  .page.hero {{ background: #1c1914; color: #f4efe4; }}
+  .page.hero, .page.dark {{ background: #1c1914; color: #f4efe4; }}
   .hero-bg {{
     position: absolute; inset: 0;
-    background:
-      linear-gradient(90deg, rgba(28,25,20,.94) 0%, rgba(28,25,20,.72) 42%, rgba(28,25,20,.28) 100%),
-      url('{hero}') center/cover no-repeat;
+    background: linear-gradient(90deg, rgba(28,25,20,.94) 0%, rgba(28,25,20,.7) 45%, rgba(28,25,20,.3) 100%),
+                url('{hero}') center/cover no-repeat;
   }}
-  .accent-bar {{
-    position: absolute; left: 42%; top: 0; bottom: 0; width: 4px; background: #8a6a3b;
-  }}
-  .pad {{ padding: 0.5in 0.6in 0.48in; position: relative; z-index: 1; height: 100%; }}
+  .accent-bar {{ position: absolute; left: 42%; top: 0; bottom: 0; width: 4px; background: #8a6a3b; }}
+  .pad {{ padding: 0.48in 0.58in 0.46in; position: relative; z-index: 1; height: 100%; }}
   .eyebrow {{
     text-transform: uppercase; letter-spacing: 0.14em; font-size: 11px;
-    color: #8a6a3b; font-weight: 600; margin: 0 0 10px;
+    color: #8a6a3b; font-weight: 600; margin: 0 0 8px;
   }}
   .hero .eyebrow, .dark .eyebrow {{ color: #c4a574; }}
   h1 {{
-    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
-    font-weight: 500; font-size: 40px; line-height: 1.05; letter-spacing: -0.02em;
-    margin: 0 0 12px; max-width: 5.4in;
+    font-family: "Iowan Old Style", Palatino, Georgia, serif;
+    font-weight: 500; font-size: 36px; line-height: 1.08; letter-spacing: -0.02em;
+    margin: 0 0 10px; max-width: 6in;
   }}
   h2 {{
-    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
-    font-weight: 500; font-size: 26px; letter-spacing: -0.02em; margin: 0 0 10px;
+    font-family: "Iowan Old Style", Palatino, Georgia, serif;
+    font-weight: 500; font-size: 24px; margin: 0 0 8px; letter-spacing: -0.02em;
   }}
-  h3 {{
-    font-family: "Iowan Old Style", Georgia, serif;
-    font-weight: 500; font-size: 15px; margin: 0 0 6px;
-  }}
-  .lede {{ font-size: 14.5px; line-height: 1.45; color: #6b6458; max-width: 5.5in; margin: 0 0 16px; }}
+  h3 {{ font-family: "Iowan Old Style", Georgia, serif; font-weight: 500; font-size: 14px; margin: 0 0 6px; }}
+  .lede {{ font-size: 14px; line-height: 1.45; color: #6b6458; max-width: 5.8in; margin: 0 0 12px; }}
   .hero .lede, .dark .lede {{ color: #c8c0b0; }}
-  .fine {{ font-size: 12px; color: #6b6458; }}
+  .fine {{ font-size: 11.5px; color: #6b6458; }}
   .hero .fine, .dark .fine {{ color: #8a8378; }}
   a.cta {{
     display: inline-block; background: #8a6a3b; color: #fffdf8 !important;
-    text-decoration: none; padding: 12px 20px; font-size: 14px; font-weight: 600;
-    border-radius: 2px; margin: 6px 0 8px;
+    text-decoration: none; padding: 11px 18px; font-size: 13px; font-weight: 600; border-radius: 2px;
   }}
-  a.url {{
-    color: #8a6a3b; font-weight: 600; font-size: 13px;
-    text-decoration: underline; text-underline-offset: 3px;
-  }}
+  a.url {{ color: #8a6a3b; font-weight: 600; font-size: 12.5px; text-decoration: underline; text-underline-offset: 3px; }}
   .hero a.url {{ color: #c4a574; }}
-  .chips {{ display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }}
+  .chips {{ display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }}
   .chip {{
     border: 1px solid #8a6a3b; color: #8a6a3b; font-size: 10px; letter-spacing: 0.08em;
     padding: 5px 9px; text-transform: uppercase;
   }}
   .hero .chip {{ border-color: #c4a574; color: #c4a574; }}
-  .grid3 {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 14px; }}
-  .grid2 {{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }}
-  .grid4 {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }}
-  .grid5 {{ display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }}
-  .card {{
-    background: #fffdf8; border: 1px solid #d9d0c0; padding: 12px 14px;
-    border-top: 3px solid #8a6a3b;
-  }}
-  .card.dark {{ background: #1c1914; border-color: #1c1914; color: #f4efe4; }}
-  .card p {{ margin: 0; font-size: 12px; line-height: 1.4; color: #6b6458; }}
-  .card.dark p {{ color: #c8c0b0; }}
-  .card .num {{ color: #8a6a3b; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; }}
   .title-row {{ display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }}
-  .title-row .bar {{ width: 4px; height: 26px; background: #8a6a3b; }}
-  img.full {{ width: 100%; height: auto; display: block; border: 1px solid #d9d0c0; }}
-  img.half {{ width: 100%; height: 4.4in; object-fit: contain; background: #fffdf8; border: 1px solid #d9d0c0; }}
-  .still-side {{
-    position: absolute; right: 0; top: 0; bottom: 0; width: 42%;
-    background: url('{still}') center/cover no-repeat;
+  .title-row .bar {{ width: 4px; height: 24px; background: #8a6a3b; }}
+  .grid2 {{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }}
+  .grid3 {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }}
+  .grid4 {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }}
+  .card {{
+    background: #fffdf8; border: 1px solid #d9d0c0; padding: 11px 12px; border-top: 3px solid #8a6a3b;
   }}
-  .still-side::after {{
-    content: ""; position: absolute; inset: 0;
-    background: linear-gradient(90deg, #f3efe6, transparent 35%);
+  .card p {{ margin: 0; font-size: 11.5px; line-height: 1.4; color: #6b6458; }}
+  .card.ink {{ background: #1c1914; border-color: #3a342c; color: #f4efe4; }}
+  .card.ink p {{ color: #c8c0b0; }}
+  .card.ink h3 {{ color: #c4a574; }}
+  img.shot {{
+    width: 100%; height: auto; max-height: 4.85in; object-fit: contain; object-position: top;
+    display: block; border: 1px solid #d9d0c0; background: #fffdf8;
   }}
-  .copy-left {{ max-width: 55%; }}
-  ol.steps {{ margin: 8px 0 0; padding-left: 1.1rem; color: #6b6458; font-size: 12.5px; line-height: 1.5; }}
-  ol.steps strong {{ color: #1c1914; }}
-  code {{ font-size: 0.92em; background: #fff; border: 1px solid #d9d0c0; padding: 1px 5px; }}
+  img.diag {{
+    width: 100%; max-height: 4.2in; object-fit: contain; display: block;
+    border: 1px solid #d9d0c0; background: #fffdf8;
+  }}
+  table.data {{
+    width: 100%; border-collapse: collapse; font-size: 11.5px; background: #fffdf8;
+    border: 1px solid #d9d0c0; margin-top: 6px;
+  }}
+  table.data th, table.data td {{
+    text-align: left; padding: 7px 10px; border-bottom: 1px solid #d9d0c0; vertical-align: top;
+  }}
+  table.data th {{
+    background: #e8dfcf; font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase;
+  }}
+  .pass {{ color: #2f5a28; font-weight: 700; }}
+  .note {{ color: #7a4020; font-weight: 600; }}
   .foot {{
-    position: absolute; left: 0.6in; right: 0.6in; bottom: 0.26in;
+    position: absolute; left: 0.58in; right: 0.58in; bottom: 0.24in;
     display: flex; justify-content: space-between; align-items: center;
-    font-size: 10px; color: #6b6458; border-top: 1px solid #d9d0c0; padding-top: 6px;
+    font-size: 10px; color: #6b6458; border-top: 1px solid #d9d0c0; padding-top: 5px;
   }}
-  .dark .foot, .hero .foot {{ color: #8a8378; border-color: rgba(217,208,192,.25); }}
+  .hero .foot, .dark .foot {{ color: #8a8378; border-color: rgba(217,208,192,.25); }}
   .foot a {{ color: #8a6a3b; font-weight: 600; }}
-  .row-api {{
-    display: grid; grid-template-columns: 2.5in 1fr; gap: 8px;
-    padding: 7px 11px; border: 1px solid #d9d0c0; margin-bottom: 5px;
-    background: #fffdf8; font-size: 12px;
+  .link-row {{ display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; align-items: center; }}
+  ul.clean {{ margin: 6px 0 0; padding-left: 1.05rem; color: #6b6458; font-size: 12px; line-height: 1.45; }}
+  .callout {{
+    background: #1c1914; color: #f4efe4; padding: 12px 14px; margin-top: 10px; border-left: 3px solid #c4a574;
+    font-size: 12.5px; line-height: 1.4;
   }}
-  .row-api:nth-child(even) {{ background: #e8dfcf; }}
-  .row-api strong {{ font-family: ui-monospace, Menlo, monospace; font-size: 11px; }}
-  .schema {{
-    display: grid; grid-template-columns: 1.4in 1fr; gap: 8px; align-items: center;
-    margin-bottom: 7px;
-  }}
-  .schema .tag {{
-    background: #1c1914; color: #f4efe4; text-align: center; padding: 9px 6px;
-    font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
-  }}
-  .schema .tag.accent {{ background: #8a6a3b; }}
-  .schema p {{ margin: 0; font-size: 12px; color: #6b6458; }}
-  .cta-banner {{
-    background: #1c1914; color: #f4efe4; padding: 16px 18px; margin: 6px 0 12px;
-    display: flex; justify-content: space-between; align-items: center; gap: 14px;
-  }}
-  .cta-banner a {{ color: #c4a574; font-size: 16px; font-weight: 700; }}
-  .split-dark {{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }}
-  .panel {{ padding: 14px 16px; min-height: 3.2in; }}
-  .panel.light {{ background: #fffdf8; border: 1px solid #d9d0c0; }}
-  .panel.ink {{ background: #1c1914; color: #f4efe4; }}
-  .panel ul {{ margin: 8px 0 0; padding-left: 1rem; font-size: 12.5px; line-height: 1.45; color: #6b6458; }}
-  .panel.ink ul {{ color: #c8c0b0; }}
-  .brand-strip {{ display: flex; gap: 7px; flex-wrap: wrap; margin-top: 10px; }}
-  .brand-strip span {{
-    background: #fffdf8; border: 1px solid #d9d0c0; padding: 6px 10px; font-size: 11px;
-    font-family: Georgia, serif;
-  }}
-  .theme-card h3 {{ color: #8a6a3b; font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase; }}
-  table.creds {{
-    width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 8px;
-    background: #fffdf8; border: 1px solid #d9d0c0;
-  }}
-  table.creds th, table.creds td {{
-    text-align: left; padding: 8px 12px; border-bottom: 1px solid #d9d0c0;
-  }}
-  table.creds th {{ background: #e8dfcf; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }}
-  .link-row {{ display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; align-items: center; }}
+  .callout strong {{ color: #c4a574; }}
 </style>
 </head>
 <body>
 
-<!-- 1 Cover -->
+<!-- 1 Purpose -->
 <section class="page hero">
   <div class="hero-bg"></div>
   <div class="accent-bar"></div>
-  <div class="pad" style="display:flex;flex-direction:column;justify-content:center;max-width:5.8in;">
-    <p class="eyebrow">Interview submission · Independent prototype</p>
+  <div class="pad" style="display:flex;flex-direction:column;justify-content:center;max-width:6.2in;">
+    <p class="eyebrow">Independent prototype · Synthetic data</p>
     <h1>VC Retail Analytics</h1>
-    <p class="lede">Synthetic Visual Comfort–flavored retail analytics: margin depth, seasonality, field grades, materials planning, and vendor scorecards — plus a governed assistant over warehouse metrics.</p>
-    <a class="cta" href="{DEMO_URL}">Open live demo →</a>
+    <p class="lede" style="max-width:5.9in;">An independent analytics prototype for designer-lighting retail workflows. Synthetic retail data, controlled metric queries, and a deterministic assistant for exploring margin, seasonality, field performance, and supply.</p>
+    <p class="fine" style="color:#c8c0b0;max-width:5.9in;">The assistant is <strong style="color:#f4efe4;">not an LLM</strong>. It routes exact supported prompts to approved metric queries and returns traceable SQL and rows. That constraint is the engineering point: tool access, metric definitions, user scope, and testable responses.</p>
+    <div class="link-row" style="margin-top:14px;">
+      <a class="cta" href="{DEMO_URL}">Open hosted demo →</a>
+    </div>
     <div class="link-row">
       <a class="url" href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a>
-      <a class="url" href="{GITHUB_URL}">GitHub →</a>
+      <a class="url" href="{GITHUB_URL}">GitHub (public)</a>
     </div>
-    <p class="fine" style="margin-top:12px;">Prefer login <strong style="color:#f4efe4">operator</strong> / <strong style="color:#f4efe4">vc-demo</strong> · Access email OTP · then hard-refresh</p>
     <div class="chips">
-      <span class="chip">Synthetic data</span>
-      <span class="chip">Not production</span>
-      <span class="chip">Always-on</span>
-      <span class="chip">Governed AI</span>
+      <span class="chip">Synthetic</span>
+      <span class="chip">SQLite on Fly</span>
+      <span class="chip">Deterministic router</span>
+      <span class="chip">Access-gated</span>
     </div>
-    <p class="fine" style="margin-top:22px;">Paul Rendleman</p>
+    <p class="fine" style="margin-top:18px;">Paul Rendleman · build checked locally at commit family {COMMIT}</p>
   </div>
 </section>
 
-<!-- 2 Start -->
+<!-- 2 Working analytics -->
 <section class="page">
   <div class="pad">
-    <p class="eyebrow">Start here</p>
-    <div class="title-row"><div class="bar"></div><h2>Open the live demo (clickable)</h2></div>
-    <div class="cta-banner">
-      <div>
-        <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#c4a574;margin-bottom:6px;">Demo · Access-gated · always-on (Fly)</div>
-        <a href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a>
-      </div>
-      <a class="cta" href="{DEMO_URL}" style="margin:0;">Open demo →</a>
-    </div>
-    <div class="grid4">
-      <div class="card"><div class="num">01</div><h3>Access OTP</h3><p>Email code from Cloudflare Access (allowlisted guests).</p></div>
-      <div class="card"><div class="num">02</div><h3>Hard-refresh</h3><p>Cmd+Shift+R so Analytics charts load (not cached TSV).</p></div>
-      <div class="card"><div class="num">03</div><h3>Sign in</h3><p><code>operator</code> / <code>vc-demo</code> for full Field &amp; Supply.</p></div>
-      <div class="card"><div class="num">04</div><h3>Walk</h3><p>Overview → Analytics (5 tabs) → Assistant → Catalog.</p></div>
-    </div>
-    <table class="creds">
-      <tr><th>Login</th><th>Password</th><th>Use when</th></tr>
-      <tr><td><code>operator</code></td><td><code>vc-demo</code></td><td>Interview walkthrough — all territories, reps, vendors</td></tr>
-      <tr><td><code>dlr-0001</code></td><td><code>vc-demo</code></td><td>Prove dealer tenancy / session lock</td></tr>
-    </table>
-    <p class="fine" style="margin-top:12px;">Source: <a class="url" href="{GITHUB_URL}">{GITHUB_URL.replace('https://','')}</a> · Not Visual Comfort production systems.</p>
+    <p class="eyebrow">Working product</p>
+    <div class="title-row"><div class="bar"></div><h2>Which channel has the thinnest margin?</h2></div>
+    <p class="lede" style="max-width:100%;">Live capture from the synthetic app (operator session). Margin section shows margin % by channel, mix contribution waterfall, and price realization. Insight callouts summarize the approved metric results.</p>
+    <img class="shot" src="{shot_m}" alt="Analytics margin view screenshot" />
+    <p class="fine" style="margin-top:8px;">Business next step: inspect mix and discounts on the thinnest channel, then low-margin SKUs. Numbers are synthetic fixtures, not Visual Comfort business results.</p>
   </div>
   {foot(2)}
 </section>
 
-<!-- 3 Opportunity -->
+<!-- 3 Traceable assistant -->
 <section class="page">
-  <div class="still-side"></div>
-  <div class="pad copy-left">
-    <p class="eyebrow">The opportunity</p>
-    <div class="title-row"><div class="bar"></div><h2>Designer lighting retail, grounded in data</h2></div>
-    <p class="lede">Public support handles FAQ and escalation — but dealer margin leakage, seasonal buy-ahead, rep quality, and vendor Prefer/Watch/Exit are missing from chat. This prototype closes that gap with governed warehouse metrics.</p>
-    <div class="brand-strip">
-      <span>Ceiling</span><span>Wall</span><span>Lamps</span><span>Outdoor</span><span>Fans</span><span>Alabaster</span><span>Cordless</span>
-    </div>
-    <div class="grid3" style="margin-top:18px; max-width:5.8in;">
-      <div class="card"><h3>Channels</h3><p>Consumer · Trade · Contract</p></div>
-      <div class="card"><h3>Tenancy</h3><p>Dealer scope from session — never the prompt</p></div>
-      <div class="card"><h3>Honesty</h3><p>Every panel is a named metric query</p></div>
+  <div class="pad">
+    <p class="eyebrow">Traceable assistant</p>
+    <div class="title-row"><div class="bar"></div><h2>Supported prompt → approved query → result</h2></div>
+    <div class="grid2">
+      <div>
+        <img class="shot" src="{shot_a}" alt="Assistant margin percent response" style="max-height:5.3in;" />
+      </div>
+      <div>
+        <div class="card">
+          <h3>Exact prompt used</h3>
+          <p><code>show margin percent</code></p>
+        </div>
+        <div class="card" style="margin-top:10px;">
+          <h3>What returned</h3>
+          <p>Metric <code>margin_pct</code>, one-line insight, bar chart, table, and expandable SQL + tool trace. Scope follows the signed session (operator = all dealers).</p>
+        </div>
+        <div class="card" style="margin-top:10px;">
+          <h3>Unsupported requests</h3>
+          <p>Invented forecasts and free-form questions are refused or clarified. The router only accepts an exact supported vocabulary.</p>
+        </div>
+        <div class="callout"><strong>Proposed (not built):</strong> an LLM could interpret natural language, then call the same approved tools, with authorization enforced outside the model.</div>
+      </div>
     </div>
   </div>
   {foot(3)}
 </section>
 
-<!-- 4 Deep analytics themes -->
+<!-- 4 Retail use cases -->
 <section class="page">
   <div class="pad">
-    <p class="eyebrow">Product depth</p>
-    <div class="title-row"><div class="bar"></div><h2>Six analytics themes in the live app</h2></div>
-    <div class="grid5" style="margin-top:8px;">
-      <div class="card theme-card"><h3>Core</h3><p>Channel / family / region bars + stock risk.</p></div>
-      <div class="card theme-card"><h3>Margin</h3><p>Margin %, price realization, mix waterfall, low-margin SKUs.</p></div>
-      <div class="card theme-card"><h3>Season</h3><p>Heatmap, YoY, lead-vs-peak buy-ahead flags.</p></div>
-      <div class="card theme-card"><h3>Field</h3><p>Territories, coverage, whitespace, rep A–D grades.</p></div>
-      <div class="card theme-card"><h3>Supply</h3><p>Days of cover, plan-vs-season, vendor Prefer/Watch/Exit.</p></div>
-    </div>
-    <div class="grid2" style="margin-top:14px;">
-      <div class="card dark">
-        <h3 style="color:#c4a574;">Talk track</h3>
-        <p style="color:#c8c0b0;margin-top:8px;">“Not vanity volume — margin discipline, seasonal buy-ahead before overseas lead, Prefer / Watch / Exit on suppliers.”</p>
-      </div>
-      <div class="card">
-        <h3>Insight callouts</h3>
-        <p>Each Analytics section surfaces 2–4 governed findings (thinnest channel, mix drag, Exit vendors, Pull-forward families) above charts and tables.</p>
+    <p class="eyebrow">Coverage in the app</p>
+    <div class="title-row"><div class="bar"></div><h2>Analytics sections actually implemented</h2></div>
+    <div class="grid2" style="margin-bottom:10px;">
+      <img class="shot" src="{shot_o}" alt="Overview screenshot" style="max-height:2.6in;" />
+      <div class="card ink">
+        <h3>Illustrative rule-based scores</h3>
+        <p>Rep A–D grades and vendor Prefer / Watch / Exit are synthetic, rule-based composites (attainment, margin vs peer, mix, OTIF, quality). They are demo decision aids, not real personnel or supplier recommendations.</p>
       </div>
     </div>
-    <p class="fine" style="margin-top:14px;">Assistant prompts: <em>show margin percent</em> · <em>show vendor scorecard</em> · <em>show rep grades</em> · <em>show lead vs peak</em></p>
+    <div class="grid4">
+      <div class="card"><h3>Core</h3><p>Channel, family, region sell-through and stock-risk flags.</p></div>
+      <div class="card"><h3>Margin</h3><p>Margin %, realization, mix waterfall, low-margin SKUs.</p></div>
+      <div class="card"><h3>Season</h3><p>Seasonal index heatmap, YoY, lead-vs-peak buy-ahead flags.</p></div>
+      <div class="card"><h3>Field &amp; Supply</h3><p>Territories, whitespace, rep grades; days of cover, reorder, vendor scorecard.</p></div>
+    </div>
+    <p class="fine" style="margin-top:10px;">Five Analytics subnav sections (Core, Margin, Season, Field, Supply) covering the six investigation themes listed in the repository README.</p>
   </div>
   {foot(4)}
 </section>
 
-<!-- 5 Local wiring -->
+<!-- 5 Runtime path -->
 <section class="page">
   <div class="pad">
-    <p class="eyebrow">Deep wiring · edge</p>
-    <div class="title-row"><div class="bar"></div><h2>Browser → Access → Fly → app + tunnel</h2></div>
-    <img class="full" src="{e2e}" alt="End-to-end wiring diagram" style="max-height:5.4in;object-fit:contain;background:#fffdf8;" />
-    <p class="fine" style="margin-top:8px;">Always-on: Fly machine runs the stdlib app + <code>cloudflared</code> to <strong>vc.datasharkbi.com</strong> (laptop not required).</p>
+    <p class="eyebrow">Runtime and access</p>
+    <div class="title-row"><div class="bar"></div><h2>Browser → Access → hosted app → SQLite</h2></div>
+    <img class="diag" src="{e2e}" alt="Runtime path diagram" />
+    <div class="grid3" style="margin-top:10px;">
+      <div class="card"><h3>Access gate</h3><p>Cloudflare Access email OTP in front of the hostname. Demo app login is separate (<code>operator</code> / <code>vc-demo</code>).</p></div>
+      <div class="card"><h3>Hosted demo</h3><p>Fly.io app <code>vc-retail-analytics</code> (ord) runs Python + tunnel. Observed machine state: started at verification time.</p></div>
+      <div class="card"><h3>Session scope</h3><p>HMAC-signed cookie binds dealer or operator role. Dealer sessions cannot request another dealer via query or body.</p></div>
+    </div>
   </div>
   {foot(5)}
 </section>
 
-<!-- 6 Medallion -->
+<!-- 6 Data model -->
 <section class="page">
   <div class="pad">
-    <p class="eyebrow">Warehouse</p>
-    <div class="title-row"><div class="bar"></div><h2>Bronze → Silver → Gold (+ monthly &amp; vendors)</h2></div>
-    <img class="full" src="{arch}" alt="Medallion architecture" style="margin-bottom:12px;max-height:3.4in;object-fit:contain;background:#fffdf8;" />
-    <div class="grid4">
-      <div class="card"><h3>Bronze</h3><p>Dealers, products, territories, reps, vendors, immutable events.</p></div>
-      <div class="card"><h3>Silver</h3><p>Dealer×SKU facts + 24-mo monthly + vendor KPI.</p></div>
-      <div class="card"><h3>Gold</h3><p>Channel × region × family rolls.</p></div>
-      <div class="card"><h3>Quality</h3><p>Bad money/channel/versions → quarantine.</p></div>
+    <p class="eyebrow">Data model and quality</p>
+    <div class="title-row"><div class="bar"></div><h2>Sources → silver facts → served metrics</h2></div>
+    <img class="diag" src="{arch}" alt="Medallion diagram" style="max-height:3.5in;" />
+    <div class="grid3" style="margin-top:10px;">
+      <div class="card"><h3>Grain</h3><p>Current silver fact: one row per (dealer_id, sku_id). Monthly series: 24 months for seasonality.</p></div>
+      <div class="card"><h3>Quarantine</h3><p>Invalid amounts, unknown channels, and conflicting versions are rejected. Full seed (50 dealers) produced 4 quarantined events in local verification.</p></div>
+      <div class="card"><h3>Approved metrics</h3><p>Named SQL templates in <code>METRICS</code>. UI and assistant only expose that closed set.</p></div>
     </div>
   </div>
   {foot(6)}
 </section>
 
-<!-- 7 Snowflake -->
+<!-- 7 Engineering checks -->
 <section class="page">
   <div class="pad">
-    <p class="eyebrow">Optional cloud path</p>
-    <div class="title-row"><div class="bar"></div><h2>Snowflake — same product contracts</h2></div>
-    <div class="grid2">
-      <div>
-        <img class="full" src="{snow}" alt="Snowflake wiring" style="max-height:4.8in;object-fit:contain;background:#fffdf8;" />
-      </div>
-      <div>
-        <div class="schema"><div class="tag">BRONZE</div><p>DEALERS, PRODUCTS, EVENTS, MONTHLY, VENDOR_KPI</p></div>
-        <div class="schema"><div class="tag">SILVER</div><p>FACTS + QUARANTINE + MONTHLY</p></div>
-        <div class="schema"><div class="tag accent">GOVERNANCE</div><p>USER_DEALERS + DEALER_SCOPE RAP</p></div>
-        <div class="schema"><div class="tag">SERVING</div><p>Secure views + semantic view</p></div>
-        <p class="fine" style="margin-top:12px;">Only claim “live Snowflake” after <code>scripts.cloud reconcile</code> evidence. Default demo is local SQLite on Fly.</p>
-      </div>
-    </div>
+    <p class="eyebrow">Evidence</p>
+    <div class="title-row"><div class="bar"></div><h2>Engineering checks and observed results</h2></div>
+    <p class="fine">Local synthetic fixtures · commit family {COMMIT} · 2026-10-02. Details in docs/VC_Submission_Verification.md.</p>
+    <table class="data">
+      <tr><th>Check</th><th>Observed result</th><th>Evidence</th></tr>
+      <tr><td>Unit / API suite</td><td class="pass">PASS</td><td>6/6 tests in <code>tests/test_core.py</code> + <code>tests/test_assistant.py</code></td></tr>
+      <tr><td>Dealer isolation</td><td class="pass">PASS</td><td>DLR-0001 session → GET summary?dealer=DLR-0002 returns 403; ask with other dealer denied; portfolio rows only DLR-0001</td></tr>
+      <tr><td>Auth failure</td><td class="pass">PASS</td><td>Wrong password → 403</td></tr>
+      <tr><td>Metric reconcile</td><td class="pass">PASS</td><td>API summary net/margin matched independent SQL on silver_facts (tolerance $0.02)</td></tr>
+      <tr><td>Unsupported forecast</td><td class="pass">PASS</td><td><code>forecast next quarter invent numbers</code> → 400 clarify / refusal</td></tr>
+      <tr><td>Quarantine seed</td><td class="pass">PASS</td><td>Full seed quarantined=4 invalid fixture events</td></tr>
+      <tr><td>Snowflake parity</td><td class="note">Not run</td><td>Adapter and SQL exist; no reconcile evidence in this pass</td></tr>
+      <tr><td>Hosted asset cache</td><td class="pass">Mitigated</td><td>Responses already <code>Cache-Control: no-store</code>; added <code>?v=</code> on CSS/JS to avoid stale UI after deploys</td></tr>
+    </table>
   </div>
   {foot(7)}
 </section>
 
-<!-- 8 Dual backend -->
+<!-- 8 Status -->
 <section class="page">
   <div class="pad">
-    <p class="eyebrow">Contracts</p>
-    <div class="title-row"><div class="bar"></div><h2>One UI · two backends · closed metrics</h2></div>
-    <div class="split-dark">
-      <div class="panel light">
-        <h3>Local / Fly</h3>
-        <ul>
-          <li><code>python3 -m app.server</code></li>
-          <li>SQLite <code>data/demo.db</code></li>
-          <li>Dealer WHERE from session cookie</li>
-          <li>Hosted with Cloudflare Tunnel token</li>
-        </ul>
-      </div>
-      <div class="panel ink">
-        <h3 style="color:#c4a574;">Snowflake</h3>
-        <ul>
-          <li><code>--backend snowflake</code></li>
-          <li>USE SCHEMA SERVING</li>
-          <li>Same METRICS SQL shapes</li>
-          <li>RAP enforces dealer scope in-warehouse</li>
-        </ul>
-      </div>
-    </div>
-    <img class="full" src="{metrics}" alt="Metric contracts" style="margin-top:10px;max-height:2.5in;object-fit:contain;background:#fffdf8;" />
+    <p class="eyebrow">Implementation status</p>
+    <div class="title-row"><div class="bar"></div><h2>What is running vs proposed</h2></div>
+    <table class="data">
+      <tr><th>Component</th><th>Status</th><th>Notes</th></tr>
+      <tr><td>Hosted app + SQLite</td><td class="pass">Running</td><td>Fly machine started; Access returns 302 to OTP; app serves after auth</td></tr>
+      <tr><td>Deterministic assistant</td><td class="pass">Implemented + tested</td><td>Exact-match router; SQL trace; forecast refusal tested</td></tr>
+      <tr><td>Session dealer scope</td><td class="pass">Implemented + tested</td><td>Server-side scope + isolation tests</td></tr>
+      <tr><td>Analytics depth (5 sections)</td><td class="pass">Implemented</td><td>Margin / season / field / supply metrics in METRICS + UI</td></tr>
+      <tr><td>Snowflake adapter / RAP</td><td class="note">Implemented, unverified live</td><td>Code + SQL present; not reconciled in this submission</td></tr>
+      <tr><td>LLM integration</td><td class="note">Proposed</td><td>Not running; would call the same approved tools</td></tr>
+    </table>
+    <p class="fine" style="margin-top:12px;">Public support and authenticated dealer analytics serve different needs. This prototype explores how controlled warehouse metrics could support dealer and internal questions alongside familiar FAQ and escalation workflows. It is not an assessment of Visual Comfort internal systems.</p>
   </div>
   {foot(8)}
 </section>
 
-<!-- 9 API + ask -->
+<!-- 9 Reviewer walkthrough -->
 <section class="page">
   <div class="pad">
-    <p class="eyebrow">HTTP + assistant</p>
-    <div class="title-row"><div class="bar"></div><h2>API map &amp; ask router</h2></div>
+    <p class="eyebrow">Reviewer path</p>
+    <div class="title-row"><div class="bar"></div><h2>How to review the hosted demo</h2></div>
     <div class="grid2">
-      <div>
-        <div class="row-api"><strong>POST /api/login</strong><span>Session cookie · dealer bind</span></div>
-        <div class="row-api"><strong>GET /api/summary</strong><span>Overview KPIs</span></div>
-        <div class="row-api"><strong>GET /api/metric</strong><span>Closed METRICS vocabulary</span></div>
-        <div class="row-api"><strong>GET /api/analytics</strong><span>Margin / season / field / supply bundle</span></div>
-        <div class="row-api"><strong>POST /api/ask</strong><span>today | proposed · insight + table</span></div>
-        <div class="row-api"><strong>POST /api/escalate</strong><span>Structured handoff JSON</span></div>
-        <div class="row-api"><strong>GET /api/products</strong><span>Catalog attribute search</span></div>
+      <div class="card">
+        <h3>Access</h3>
+        <ul class="clean">
+          <li>Open <a class="url" href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a></li>
+          <li>Complete Cloudflare Access email OTP (allowlisted addresses only)</li>
+          <li>Demo login: <code>operator</code> / <code>vc-demo</code></li>
+          <li>Optional tenancy check: <code>dlr-0001</code> / <code>vc-demo</code></li>
+        </ul>
       </div>
-      <div>
-        <img class="full" src="{ask}" alt="Ask routing" style="max-height:4.8in;object-fit:contain;background:#fffdf8;" />
+      <div class="card">
+        <h3>Supported prompts to try</h3>
+        <ul class="clean">
+          <li><code>show margin percent</code></li>
+          <li><code>show vendor scorecard</code></li>
+          <li><code>show rep grades</code></li>
+          <li><code>show lead vs peak</code></li>
+          <li>Refuse check: ask for an invented forecast</li>
+        </ul>
       </div>
     </div>
+    <div class="card" style="margin-top:12px;">
+      <h3>Fallback if Access blocks you</h3>
+      <p>Screenshots in this PDF are from the current synthetic build. Source is public at <a class="url" href="{GITHUB_URL}">{GITHUB_URL}</a>. Local run: <code>python3 -m app.server</code> then http://127.0.0.1:8770/login. Forwarded reviewers may need an Access allowlist entry from the owner (not automated in this submission).</p>
+    </div>
+    <p class="fine" style="margin-top:10px;">Asset version query strings (<code>?v=20261002b</code>) reduce stale-cache risk after deploys. If an older TSV-only UI still appears, a normal refresh should pull new assets.</p>
   </div>
   {foot(9)}
 </section>
 
-<!-- 10 Gap + charts -->
-<section class="page">
-  <div class="pad">
-    <p class="eyebrow">Product story</p>
-    <div class="title-row"><div class="bar"></div><h2>Today vs Proposed · sample analytics</h2></div>
-    <div class="grid2">
-      <img class="half" src="{gap}" alt="Today vs Proposed" />
-      <div>
-        <img class="full" src="{ch}" alt="Channel chart" style="margin-bottom:8px;max-height:2.2in;object-fit:contain;background:#fffdf8;" />
-        <img class="full" src="{st}" alt="Stock risk chart" style="max-height:2.2in;object-fit:contain;background:#fffdf8;" />
-      </div>
-    </div>
-  </div>
-  {foot(10)}
-</section>
-
-<!-- 11 Demo script -->
-<section class="page">
-  <div class="pad">
-    <p class="eyebrow">Try it</p>
-    <div class="title-row"><div class="bar"></div><h2>~10 minute walkthrough</h2></div>
-    <div class="cta-banner">
-      <a href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a>
-      <a class="cta" href="{DEMO_URL}" style="margin:0;">Open live demo →</a>
-    </div>
-    <div class="split-dark">
-      <div class="panel light" style="min-height:3.4in;">
-        <h3>Today (site pattern)</h3>
-        <ul>
-          <li><em>custom order lead time</em> → FAQ snippet</li>
-          <li><em>what is open box</em> → policy</li>
-          <li><em>where is my order 12345</em> → escalate to form/phone</li>
-          <li>Gap: no warehouse grounding</li>
-        </ul>
-      </div>
-      <div class="panel ink" style="min-height:3.4in;">
-        <h3 style="color:#c4a574;">Proposed (governed)</h3>
-        <ul>
-          <li>Login <strong>operator</strong> / vc-demo</li>
-          <li>Analytics: Margin → Season → Field → Supply</li>
-          <li><em>show margin percent</em> → insight + chart + SQL</li>
-          <li><em>show vendor scorecard</em> → Prefer / Watch / Exit</li>
-          <li><em>show rep grades</em> → A–D composite</li>
-          <li><em>invent a forecast</em> → refuse</li>
-        </ul>
-      </div>
-    </div>
-    <p class="fine" style="margin-top:12px;">Offline assistant is a FAQ + metric router — <strong>not an LLM</strong>. Full script: <code>docs/DEMO_SCRIPT.md</code>.</p>
-  </div>
-  {foot(11)}
-</section>
-
-<!-- 12 Honesty -->
-<section class="page dark">
-  <div class="pad">
-    <p class="eyebrow">Engineering honesty</p>
-    <div class="title-row"><div class="bar"></div><h2 style="color:#f4efe4;">What this is — and isn’t</h2></div>
-    <div class="grid3" style="margin-top:18px;">
-      <div class="card dark" style="border-top-color:#c4a574;">
-        <h3 style="color:#c4a574;">Is</h3>
-        <p>Independent synthetic portfolio piece · Visual Comfort–flavored public brand language · always-on governed demo</p>
-      </div>
-      <div class="card dark" style="border-top-color:#c4a574;">
-        <h3 style="color:#c4a574;">Isn’t</h3>
-        <p>Not Visual Comfort production data · not commissioned client work · not a live LLM · not Openflow</p>
-      </div>
-      <div class="card dark" style="border-top-color:#c4a574;">
-        <h3 style="color:#c4a574;">Submit pack</h3>
-        <p>Live URL + Access · this PDF · GitHub source · operator walkthrough</p>
-      </div>
-    </div>
-    <div class="link-row" style="margin-top:28px;">
-      <a class="url" href="{DEMO_URL}">Demo</a>
-      <a class="url" href="{GITHUB_URL}">Source</a>
-    </div>
-  </div>
-  {foot(12)}
-</section>
-
-<!-- 13 Close -->
+<!-- 10 Close -->
 <section class="page hero">
   <div class="hero-bg"></div>
   <div class="accent-bar"></div>
-  <div class="pad" style="display:flex;flex-direction:column;justify-content:center;max-width:5.8in;">
-    <p class="eyebrow">Independent · Synthetic · Governed</p>
-    <h1>Ground retail AI<br/>in metrics.</h1>
-    <p class="lede">Built so the team can see how dealer analytics and a trustworthy assistant should be wired — across margin, season, field, and supply.</p>
-    <a class="cta" href="{DEMO_URL}">Open live demo →</a>
+  <div class="pad" style="display:flex;flex-direction:column;justify-content:center;max-width:6in;">
+    <p class="eyebrow">Close</p>
+    <h1>What this prototype demonstrates</h1>
+    <p class="lede">Synthetic dealer analytics with approved metric definitions, session scope, quarantine, and a deterministic assistant that returns traceable results. Useful foundation for later LLM tooling without inventing answers.</p>
+    <p class="fine" style="color:#c8c0b0;">Limitations: synthetic data only; Snowflake not live-reconciled here; Access OTP required for the hosted hostname; scores are illustrative rules.</p>
+    <div class="link-row" style="margin-top:16px;">
+      <a class="cta" href="{DEMO_URL}">Open hosted demo →</a>
+    </div>
     <div class="link-row">
       <a class="url" href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a>
       <a class="url" href="{GITHUB_URL}">github.com/prendleman/vc-retail-analytics</a>
     </div>
-    <p class="fine" style="margin-top:10px;">operator / vc-demo · Access OTP · hard-refresh</p>
-    <p class="fine" style="margin-top:24px;color:#f4efe4;">Paul Rendleman</p>
+    <p class="fine" style="margin-top:22px;color:#f4efe4;">Paul Rendleman</p>
   </div>
+</section>
+
+<!-- A1 Appendix optional Snowflake -->
+<section class="page">
+  <div class="pad">
+    <p class="eyebrow">Appendix A · optional</p>
+    <div class="title-row"><div class="bar"></div><h2>Snowflake path (code present, live not verified)</h2></div>
+    <p class="lede">One UI can target SQLite or Snowflake. This submission’s hosted runtime is SQLite on Fly. Snowflake SQL, serving views, and RAP scripts exist under <code>sql/snowflake/</code> and <code>scripts/cloud.py</code>.</p>
+    <div class="grid3">
+      <div class="card"><h3>Present</h3><p>Platform, transform, governance, semantic SQL; dual-backend app flag.</p></div>
+      <div class="card"><h3>Not shown here</h3><p>Live reconcile, RAP enforcement proof, Cortex Analyst evaluation.</p></div>
+      <div class="card"><h3>Claim rule</h3><p>Do not treat Snowflake as demonstrated until reconcile evidence is recorded.</p></div>
+    </div>
+  </div>
+  {foot(11)}
+</section>
+
+<!-- A2 Appendix metrics list -->
+<section class="page">
+  <div class="pad">
+    <p class="eyebrow">Appendix B · optional</p>
+    <div class="title-row"><div class="bar"></div><h2>Approved metric vocabulary (excerpt)</h2></div>
+    <div class="grid2">
+      <div class="card">
+        <h3>Core / margin / season</h3>
+        <ul class="clean">
+          <li>portfolio, by_channel, by_family, by_region, stock_risk</li>
+          <li>margin_pct, price_realization, low_margin_skus, margin_waterfall</li>
+          <li>units_by_month, seasonal_index, yoy_family, lead_vs_peak</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Field / supply / quality</h3>
+        <ul class="clean">
+          <li>territory_perf, territory_coverage, whitespace</li>
+          <li>rep_leaderboard, rep_grade</li>
+          <li>days_of_cover, reorder_candidates, plan_vs_season</li>
+          <li>vendor_otif, vendor_scorecard, quality</li>
+        </ul>
+      </div>
+    </div>
+    <p class="fine" style="margin-top:14px;">Full definitions live in <code>app/core.py</code> (<code>METRICS</code> / <code>METRIC_PHRASES</code>). Assistant accepts only exact phrases from that map.</p>
+  </div>
+  {foot(12)}
 </section>
 
 </body>
@@ -525,8 +440,18 @@ def main() -> None:
             margin={"top": "0", "right": "0", "bottom": "0", "left": "0"},
             prefer_css_page_size=True,
         )
+        # alias for prior filename
+        page.pdf(
+            path=str(OUT_PDF_ALIAS),
+            landscape=True,
+            format="Letter",
+            print_background=True,
+            margin={"top": "0", "right": "0", "bottom": "0", "left": "0"},
+            prefer_css_page_size=True,
+        )
         browser.close()
     print("wrote", OUT_PDF)
+    print("wrote", OUT_PDF_ALIAS)
 
 
 if __name__ == "__main__":

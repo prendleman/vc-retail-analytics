@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>App · VC Retail Analytics</title>
-  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/style.css?v=20261002b" />
 </head>
 <body class="app">
   <header class="top">
@@ -32,7 +32,7 @@
     </section>
     <section id="analytics" class="tab" hidden>
       <h2>Retail analytics</h2>
-      <p class="fine">Insight callouts + charts + governed warehouse tables — Margin · Season · Field · Supply.</p>
+      <p class="fine">Insight callouts + charts + approved warehouse metrics. Sections: Core · Margin · Season · Field · Supply.</p>
       <div class="subnav" id="analytics-subnav">
         <button type="button" data-section="core" class="active">Core</button>
         <button type="button" data-section="margin">Margin</button>
@@ -43,25 +43,25 @@
       <div id="analytics-panels"></div>
     </section>
     <section id="assistant" class="tab" hidden>
-      <h2>Today vs Proposed</h2>
-      <p class="fine">Left: current site support pattern (FAQ / escalate). Right: governed demo assistant over synthetic warehouse + catalog.</p>
+      <h2>Illustrative support vs analytics workflow</h2>
+      <p class="fine">Left: illustrative FAQ / escalate pattern. Right: deterministic assistant that routes exact prompts to approved metric queries (not an LLM). Illustrative workflows, not an assessment of any client's internal systems.</p>
       <div class="split">
         <div>
-          <h3>Today (site pattern)</h3>
+          <h3>Illustrative support workflow</h3>
           <textarea id="q-today" rows="3" placeholder="e.g. custom order lead time"></textarea>
-          <button id="ask-today" type="button">Ask Today</button>
+          <button id="ask-today" type="button">Ask support pattern</button>
           <pre id="out-today" class="out"></pre>
         </div>
         <div>
-          <h3>Proposed (governed)</h3>
+          <h3>Analytics workflow (demonstrated)</h3>
           <textarea id="q-proposed" rows="3" placeholder="e.g. show margin percent"></textarea>
-          <button id="ask-proposed" type="button">Ask Proposed</button>
+          <button id="ask-proposed" type="button">Ask approved metric</button>
           <button id="escalate" type="button" class="ghost">Escalate packet</button>
           <pre id="out-proposed" class="out"></pre>
         </div>
       </div>
       <details>
-        <summary>Verified metric prompts</summary>
+        <summary>Supported metric prompts (exact match)</summary>
         <ul>
           <li>show portfolio</li>
           <li>show sales by channel / family / region</li>
@@ -69,19 +69,19 @@
           <li>show margin percent</li>
           <li>show price realization</li>
           <li>show low margin skus</li>
+          <li>show margin waterfall</li>
           <li>show reorder candidates</li>
           <li>show days of cover</li>
           <li>show seasonality</li>
           <li>show units by month</li>
-          <li>show territory performance</li>
-          <li>show whitespace</li>
-          <li>show rep leaderboard</li>
-          <li>show rep grades</li>
-          <li>show margin waterfall</li>
           <li>show yoy by family</li>
           <li>show lead vs peak</li>
+          <li>show territory performance</li>
           <li>show territory coverage</li>
+          <li>show whitespace</li>
           <li>show plan vs season</li>
+          <li>show rep leaderboard</li>
+          <li>show rep grades</li>
           <li>show vendor scorecard</li>
           <li>show vendor otif</li>
           <li>show data quality</li>
@@ -94,6 +94,6 @@
       <pre id="catalog-out" class="table"></pre>
     </section>
   </main>
-  <script src="/app.js"></script>
+  <script src="/app.js?v=20261002b"></script>
 </body>
 </html>
