@@ -129,7 +129,7 @@
       <span class="chip">Deterministic router</span>
       <span class="chip">Access-gated</span>
     </div>
-    <p class="fine" style="margin-top:18px;">Paul Rendleman · build checked locally at commit family 700167c</p>
+    <p class="fine" style="margin-top:18px;">Paul Rendleman · independent prototype</p>
   </div>
 </section>
 
@@ -232,17 +232,17 @@
   <div class="pad">
     <p class="eyebrow">Evidence</p>
     <div class="title-row"><div class="bar"></div><h2>Engineering checks and observed results</h2></div>
-    <p class="fine">Local synthetic fixtures · commit family 700167c · 2026-10-02. Details in docs/VC_Submission_Verification.md.</p>
+    <p class="fine">Local checks: <code>b40c9f6</code>, 2026-10-02T20:38Z (re-run PASS). Hosted smoke: <code>b40c9f6</code> image, 2026-10-02T20:45Z, PASS. Details in docs/VC_Submission_Verification.md.</p>
     <table class="data">
       <tr><th>Check</th><th>Observed result</th><th>Evidence</th></tr>
       <tr><td>Unit / API suite</td><td class="pass">PASS</td><td>6/6 tests in <code>tests/test_core.py</code> + <code>tests/test_assistant.py</code></td></tr>
       <tr><td>Dealer isolation</td><td class="pass">PASS</td><td>DLR-0001 session → GET summary?dealer=DLR-0002 returns 403; ask with other dealer denied; portfolio rows only DLR-0001</td></tr>
       <tr><td>Auth failure</td><td class="pass">PASS</td><td>Wrong password → 403</td></tr>
       <tr><td>Metric reconcile</td><td class="pass">PASS</td><td>API summary net/margin matched independent SQL on silver_facts (tolerance $0.02)</td></tr>
-      <tr><td>Unsupported forecast</td><td class="pass">PASS</td><td><code>forecast next quarter invent numbers</code> → 400 clarify / refusal</td></tr>
+      <tr><td>Unsupported forecast</td><td class="pass">PASS</td><td>Local: 400 clarify. Hosted: HTTP 400 (no fabricated rows)</td></tr>
       <tr><td>Quarantine seed</td><td class="pass">PASS</td><td>Full seed quarantined=4 invalid fixture events</td></tr>
       <tr><td>Snowflake parity</td><td class="note">Not run</td><td>Adapter and SQL exist; no reconcile evidence in this pass</td></tr>
-      <tr><td>Hosted asset cache</td><td class="pass">Mitigated</td><td>Responses already <code>Cache-Control: no-store</code>; added <code>?v=</code> on CSS/JS to avoid stale UI after deploys</td></tr>
+      <tr><td>Hosted authenticated walkthrough</td><td class="pass">PASS</td><td>Operator path on vc.datasharkbi.com: Overview, Analytics (5 sections), assistant metric + SQL trace, catalog search, logout</td></tr>
     </table>
   </div>
   <div class="foot"><span>VC Retail Analytics · synthetic · Paul Rendleman</span><a href="https://vc.datasharkbi.com/">https://vc.datasharkbi.com</a><span>7 / 12</span></div>
@@ -255,7 +255,7 @@
     <div class="title-row"><div class="bar"></div><h2>What is running vs proposed</h2></div>
     <table class="data">
       <tr><th>Component</th><th>Status</th><th>Notes</th></tr>
-      <tr><td>Hosted app + SQLite</td><td class="pass">Running</td><td>Fly machine started; Access returns 302 to OTP; app serves after auth</td></tr>
+      <tr><td>Hosted app + SQLite</td><td class="pass">Running</td><td>Fly machine started; Access OTP gate; authenticated hosted walkthrough PASS (see verification notes)</td></tr>
       <tr><td>Deterministic assistant</td><td class="pass">Implemented + tested</td><td>Exact-match router; SQL trace; forecast refusal tested</td></tr>
       <tr><td>Session dealer scope</td><td class="pass">Implemented + tested</td><td>Server-side scope + isolation tests</td></tr>
       <tr><td>Analytics depth (5 sections)</td><td class="pass">Implemented</td><td>Margin / season / field / supply metrics in METRICS + UI</td></tr>
@@ -295,9 +295,9 @@
     </div>
     <div class="card" style="margin-top:12px;">
       <h3>Fallback if Access blocks you</h3>
-      <p>Screenshots in this PDF are from the current synthetic build. Source is public at <a class="url" href="https://github.com/prendleman/vc-retail-analytics">https://github.com/prendleman/vc-retail-analytics</a>. Local run: <code>python3 -m app.server</code> then http://127.0.0.1:8770/login. Forwarded reviewers may need an Access allowlist entry from the owner (not automated in this submission).</p>
+      <p>Screenshots in this PDF are from the current synthetic build. Source is public at <a class="url" href="https://github.com/prendleman/vc-retail-analytics">https://github.com/prendleman/vc-retail-analytics</a>. Local run: <code>python3 -m app.server</code> then http://127.0.0.1:8770/login. Additional reviewers may need access enabled before opening the hosted demo.</p>
     </div>
-    <p class="fine" style="margin-top:10px;">Asset version query strings (<code>?v=20261002b</code>) reduce stale-cache risk after deploys. If an older TSV-only UI still appears, a normal refresh should pull new assets.</p>
+    <p class="fine" style="margin-top:10px;">If an older UI still appears after a deploy, a normal refresh should pull versioned assets.</p>
   </div>
   <div class="foot"><span>VC Retail Analytics · synthetic · Paul Rendleman</span><a href="https://vc.datasharkbi.com/">https://vc.datasharkbi.com</a><span>9 / 12</span></div>
 </section>
@@ -331,7 +331,7 @@
     <div class="grid3">
       <div class="card"><h3>Present</h3><p>Platform, transform, governance, semantic SQL; dual-backend app flag.</p></div>
       <div class="card"><h3>Not shown here</h3><p>Live reconcile, RAP enforcement proof, Cortex Analyst evaluation.</p></div>
-      <div class="card"><h3>Claim rule</h3><p>Do not treat Snowflake as demonstrated until reconcile evidence is recorded.</p></div>
+      <div class="card"><h3>Validation status</h3><p>Live Snowflake validation pending. Backend reconciliation and row-access policy checks have not been demonstrated in this submission.</p></div>
     </div>
   </div>
   <div class="foot"><span>VC Retail Analytics · synthetic · Paul Rendleman</span><a href="https://vc.datasharkbi.com/">https://vc.datasharkbi.com</a><span>11 / 12</span></div>

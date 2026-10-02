@@ -1,7 +1,11 @@
 async function api(path, opts) {
   const res = await fetch(path, opts);
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || res.statusText);
+  if (!res.ok) {
+    // Clarify refusals are intentional 400s with kind/answer (not error).
+    if (data && data.kind === "clarify") return data;
+    throw new Error(data.error || data.answer || res.statusText || "Request failed");
+  }
   return data;
 }
 

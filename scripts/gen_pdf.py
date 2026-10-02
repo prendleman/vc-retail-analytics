@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Submission-revised PDF deck (evidence-backed, 10 core slides + appendix).
+"""Submission PDF deck (evidence-backed, 10 core slides + appendix).
 
 Output:
-  docs/deck/VC_Retail_Analytics_Submission_Revised.pdf
+  docs/deck/VC_Retail_Analytics_Submission_Final.pdf
+  docs/deck/VC_Retail_Analytics_Submission_Revised.pdf  (same bytes alias)
   docs/deck/VC_Retail_Analytics_Deck.html  (editable source mirror)
+  docs/deck/VC_Retail_Analytics_Deck.pdf   (same render alias)
 """
 from __future__ import annotations
 
@@ -15,14 +17,16 @@ from playwright.sync_api import sync_playwright
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "docs" / "deck" / "assets"
 OUT_HTML = ROOT / "docs" / "deck" / "VC_Retail_Analytics_Deck.html"
-OUT_PDF = ROOT / "docs" / "deck" / "VC_Retail_Analytics_Submission_Revised.pdf"
-# Keep classic filename as copy for prior links
+OUT_PDF = ROOT / "docs" / "deck" / "VC_Retail_Analytics_Submission_Final.pdf"
+OUT_PDF_REVISED = ROOT / "docs" / "deck" / "VC_Retail_Analytics_Submission_Revised.pdf"
 OUT_PDF_ALIAS = ROOT / "docs" / "deck" / "VC_Retail_Analytics_Deck.pdf"
 DEMO_URL = os.environ.get("VC_DEMO_URL", "https://vc.datasharkbi.com/").rstrip("/") + "/"
 GITHUB_URL = os.environ.get(
     "VC_GITHUB_URL", "https://github.com/prendleman/vc-retail-analytics"
 ).rstrip("/")
-COMMIT = os.environ.get("VC_BUILD_COMMIT", "700167c+")
+# Application build under local/hosted smoke (docs-only commits excluded).
+LOCAL_TESTED = os.environ.get("VC_LOCAL_TESTED", "b40c9f6")
+HOSTED_BUILD = os.environ.get("VC_HOSTED_BUILD", "b40c9f6")
 TOTAL = 12  # 10 core + 2 appendix
 
 
@@ -177,7 +181,7 @@ def build_html() -> str:
       <span class="chip">Deterministic router</span>
       <span class="chip">Access-gated</span>
     </div>
-    <p class="fine" style="margin-top:18px;">Paul Rendleman · build checked locally at commit family {COMMIT}</p>
+    <p class="fine" style="margin-top:18px;">Paul Rendleman · independent prototype</p>
   </div>
 </section>
 
@@ -280,17 +284,17 @@ def build_html() -> str:
   <div class="pad">
     <p class="eyebrow">Evidence</p>
     <div class="title-row"><div class="bar"></div><h2>Engineering checks and observed results</h2></div>
-    <p class="fine">Local synthetic fixtures · commit family {COMMIT} · 2026-10-02. Details in docs/VC_Submission_Verification.md.</p>
+    <p class="fine">Local checks: <code>{LOCAL_TESTED}</code>, 2026-10-02T20:38Z (re-run PASS). Hosted smoke: <code>{HOSTED_BUILD}</code> image, 2026-10-02T20:45Z, PASS. Details in docs/VC_Submission_Verification.md.</p>
     <table class="data">
       <tr><th>Check</th><th>Observed result</th><th>Evidence</th></tr>
       <tr><td>Unit / API suite</td><td class="pass">PASS</td><td>6/6 tests in <code>tests/test_core.py</code> + <code>tests/test_assistant.py</code></td></tr>
       <tr><td>Dealer isolation</td><td class="pass">PASS</td><td>DLR-0001 session → GET summary?dealer=DLR-0002 returns 403; ask with other dealer denied; portfolio rows only DLR-0001</td></tr>
       <tr><td>Auth failure</td><td class="pass">PASS</td><td>Wrong password → 403</td></tr>
       <tr><td>Metric reconcile</td><td class="pass">PASS</td><td>API summary net/margin matched independent SQL on silver_facts (tolerance $0.02)</td></tr>
-      <tr><td>Unsupported forecast</td><td class="pass">PASS</td><td><code>forecast next quarter invent numbers</code> → 400 clarify / refusal</td></tr>
+      <tr><td>Unsupported forecast</td><td class="pass">PASS</td><td>Local: 400 clarify. Hosted: HTTP 400 (no fabricated rows)</td></tr>
       <tr><td>Quarantine seed</td><td class="pass">PASS</td><td>Full seed quarantined=4 invalid fixture events</td></tr>
       <tr><td>Snowflake parity</td><td class="note">Not run</td><td>Adapter and SQL exist; no reconcile evidence in this pass</td></tr>
-      <tr><td>Hosted asset cache</td><td class="pass">Mitigated</td><td>Responses already <code>Cache-Control: no-store</code>; added <code>?v=</code> on CSS/JS to avoid stale UI after deploys</td></tr>
+      <tr><td>Hosted authenticated walkthrough</td><td class="pass">PASS</td><td>Operator path on vc.datasharkbi.com: Overview, Analytics (5 sections), assistant metric + SQL trace, catalog search, logout</td></tr>
     </table>
   </div>
   {foot(7)}
@@ -303,7 +307,7 @@ def build_html() -> str:
     <div class="title-row"><div class="bar"></div><h2>What is running vs proposed</h2></div>
     <table class="data">
       <tr><th>Component</th><th>Status</th><th>Notes</th></tr>
-      <tr><td>Hosted app + SQLite</td><td class="pass">Running</td><td>Fly machine started; Access returns 302 to OTP; app serves after auth</td></tr>
+      <tr><td>Hosted app + SQLite</td><td class="pass">Running</td><td>Fly machine started; Access OTP gate; authenticated hosted walkthrough PASS (see verification notes)</td></tr>
       <tr><td>Deterministic assistant</td><td class="pass">Implemented + tested</td><td>Exact-match router; SQL trace; forecast refusal tested</td></tr>
       <tr><td>Session dealer scope</td><td class="pass">Implemented + tested</td><td>Server-side scope + isolation tests</td></tr>
       <tr><td>Analytics depth (5 sections)</td><td class="pass">Implemented</td><td>Margin / season / field / supply metrics in METRICS + UI</td></tr>
@@ -343,9 +347,9 @@ def build_html() -> str:
     </div>
     <div class="card" style="margin-top:12px;">
       <h3>Fallback if Access blocks you</h3>
-      <p>Screenshots in this PDF are from the current synthetic build. Source is public at <a class="url" href="{GITHUB_URL}">{GITHUB_URL}</a>. Local run: <code>python3 -m app.server</code> then http://127.0.0.1:8770/login. Forwarded reviewers may need an Access allowlist entry from the owner (not automated in this submission).</p>
+      <p>Screenshots in this PDF are from the current synthetic build. Source is public at <a class="url" href="{GITHUB_URL}">{GITHUB_URL}</a>. Local run: <code>python3 -m app.server</code> then http://127.0.0.1:8770/login. Additional reviewers may need access enabled before opening the hosted demo.</p>
     </div>
-    <p class="fine" style="margin-top:10px;">Asset version query strings (<code>?v=20261002b</code>) reduce stale-cache risk after deploys. If an older TSV-only UI still appears, a normal refresh should pull new assets.</p>
+    <p class="fine" style="margin-top:10px;">If an older UI still appears after a deploy, a normal refresh should pull versioned assets.</p>
   </div>
   {foot(9)}
 </section>
@@ -379,7 +383,7 @@ def build_html() -> str:
     <div class="grid3">
       <div class="card"><h3>Present</h3><p>Platform, transform, governance, semantic SQL; dual-backend app flag.</p></div>
       <div class="card"><h3>Not shown here</h3><p>Live reconcile, RAP enforcement proof, Cortex Analyst evaluation.</p></div>
-      <div class="card"><h3>Claim rule</h3><p>Do not treat Snowflake as demonstrated until reconcile evidence is recorded.</p></div>
+      <div class="card"><h3>Validation status</h3><p>Live Snowflake validation pending. Backend reconciliation and row-access policy checks have not been demonstrated in this submission.</p></div>
     </div>
   </div>
   {foot(11)}
@@ -432,26 +436,17 @@ def main() -> None:
             browser = p.chromium.launch(headless=True)
         page = browser.new_page()
         page.goto(OUT_HTML.resolve().as_uri(), wait_until="networkidle")
-        page.pdf(
-            path=str(OUT_PDF),
-            landscape=True,
-            format="Letter",
-            print_background=True,
-            margin={"top": "0", "right": "0", "bottom": "0", "left": "0"},
-            prefer_css_page_size=True,
-        )
-        # alias for prior filename
-        page.pdf(
-            path=str(OUT_PDF_ALIAS),
-            landscape=True,
-            format="Letter",
-            print_background=True,
-            margin={"top": "0", "right": "0", "bottom": "0", "left": "0"},
-            prefer_css_page_size=True,
-        )
+        for dest in (OUT_PDF, OUT_PDF_REVISED, OUT_PDF_ALIAS):
+            page.pdf(
+                path=str(dest),
+                landscape=True,
+                format="Letter",
+                print_background=True,
+                margin={"top": "0", "right": "0", "bottom": "0", "left": "0"},
+                prefer_css_page_size=True,
+            )
+            print("wrote", dest)
         browser.close()
-    print("wrote", OUT_PDF)
-    print("wrote", OUT_PDF_ALIAS)
 
 
 if __name__ == "__main__":
