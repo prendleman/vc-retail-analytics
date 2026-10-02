@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Beautiful Visual Comfort–flavored PDF deck with clickable demo URL.
+"""Submission PDF deck — VC Retail Analytics (clickable demo + GitHub URLs).
 
 Renders branded HTML → Chromium print-to-PDF (links work in Preview / Acrobat).
 """
@@ -15,10 +15,22 @@ ASSETS = ROOT / "docs" / "deck" / "assets"
 OUT_HTML = ROOT / "docs" / "deck" / "VC_Retail_Analytics_Deck.html"
 OUT_PDF = ROOT / "docs" / "deck" / "VC_Retail_Analytics_Deck.pdf"
 DEMO_URL = os.environ.get("VC_DEMO_URL", "https://vc.datasharkbi.com/").rstrip("/") + "/"
+GITHUB_URL = os.environ.get(
+    "VC_GITHUB_URL", "https://github.com/prendleman/vc-retail-analytics"
+).rstrip("/")
+TOTAL = 13
 
 
 def uri(name: str) -> str:
     return (ASSETS / name).resolve().as_uri()
+
+
+def foot(n: int) -> str:
+    return (
+        f'<div class="foot"><span>VC Retail Analytics · synthetic · Paul Rendleman</span>'
+        f'<a href="{DEMO_URL}">{DEMO_URL.rstrip("/")}</a>'
+        f'<span>{n} / {TOTAL}</span></div>'
+    )
 
 
 def build_html() -> str:
@@ -37,7 +49,7 @@ def build_html() -> str:
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>VC Retail Analytics</title>
+<title>VC Retail Analytics — Submission</title>
 <style>
   @page {{ size: Letter landscape; margin: 0; }}
   * {{ box-sizing: border-box; }}
@@ -59,14 +71,8 @@ def build_html() -> str:
       linear-gradient(180deg, #f7f2e8, #f3efe6);
   }}
   .page:last-child {{ page-break-after: auto; }}
-  .page.dark {{
-    background: #1c1914;
-    color: #f4efe4;
-  }}
-  .page.hero {{
-    background: #1c1914;
-    color: #f4efe4;
-  }}
+  .page.dark {{ background: #1c1914; color: #f4efe4; }}
+  .page.hero {{ background: #1c1914; color: #f4efe4; }}
   .hero-bg {{
     position: absolute; inset: 0;
     background:
@@ -76,7 +82,7 @@ def build_html() -> str:
   .accent-bar {{
     position: absolute; left: 42%; top: 0; bottom: 0; width: 4px; background: #8a6a3b;
   }}
-  .pad {{ padding: 0.55in 0.65in 0.5in; position: relative; z-index: 1; height: 100%; }}
+  .pad {{ padding: 0.5in 0.6in 0.48in; position: relative; z-index: 1; height: 100%; }}
   .eyebrow {{
     text-transform: uppercase; letter-spacing: 0.14em; font-size: 11px;
     color: #8a6a3b; font-weight: 600; margin: 0 0 10px;
@@ -84,54 +90,53 @@ def build_html() -> str:
   .hero .eyebrow, .dark .eyebrow {{ color: #c4a574; }}
   h1 {{
     font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
-    font-weight: 500; font-size: 42px; line-height: 1.05; letter-spacing: -0.02em;
-    margin: 0 0 14px; max-width: 5.2in;
+    font-weight: 500; font-size: 40px; line-height: 1.05; letter-spacing: -0.02em;
+    margin: 0 0 12px; max-width: 5.4in;
   }}
   h2 {{
     font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
-    font-weight: 500; font-size: 28px; letter-spacing: -0.02em; margin: 0 0 12px;
+    font-weight: 500; font-size: 26px; letter-spacing: -0.02em; margin: 0 0 10px;
   }}
   h3 {{
     font-family: "Iowan Old Style", Georgia, serif;
-    font-weight: 500; font-size: 16px; margin: 0 0 6px;
+    font-weight: 500; font-size: 15px; margin: 0 0 6px;
   }}
-  .lede {{ font-size: 15px; line-height: 1.45; color: #6b6458; max-width: 5.4in; margin: 0 0 18px; }}
+  .lede {{ font-size: 14.5px; line-height: 1.45; color: #6b6458; max-width: 5.5in; margin: 0 0 16px; }}
   .hero .lede, .dark .lede {{ color: #c8c0b0; }}
   .fine {{ font-size: 12px; color: #6b6458; }}
   .hero .fine, .dark .fine {{ color: #8a8378; }}
   a.cta {{
     display: inline-block; background: #8a6a3b; color: #fffdf8 !important;
-    text-decoration: none; padding: 14px 22px; font-size: 15px; font-weight: 600;
-    border-radius: 2px; margin: 8px 0 10px;
+    text-decoration: none; padding: 12px 20px; font-size: 14px; font-weight: 600;
+    border-radius: 2px; margin: 6px 0 8px;
   }}
-  a.cta.dark-btn {{ background: #1c1914; }}
-  a.cta.light-btn {{ background: #fffdf8; color: #1c1914 !important; border: 1px solid #d9d0c0; }}
   a.url {{
-    color: #8a6a3b; font-weight: 600; font-size: 14px;
+    color: #8a6a3b; font-weight: 600; font-size: 13px;
     text-decoration: underline; text-underline-offset: 3px;
   }}
   .hero a.url {{ color: #c4a574; }}
-  .chips {{ display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }}
+  .chips {{ display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }}
   .chip {{
     border: 1px solid #8a6a3b; color: #8a6a3b; font-size: 10px; letter-spacing: 0.08em;
-    padding: 6px 10px; text-transform: uppercase;
+    padding: 5px 9px; text-transform: uppercase;
   }}
   .hero .chip {{ border-color: #c4a574; color: #c4a574; }}
-  .grid3 {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 18px; }}
-  .grid2 {{ display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }}
-  .grid4 {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }}
+  .grid3 {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 14px; }}
+  .grid2 {{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }}
+  .grid4 {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }}
+  .grid5 {{ display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }}
   .card {{
-    background: #fffdf8; border: 1px solid #d9d0c0; padding: 14px 16px;
+    background: #fffdf8; border: 1px solid #d9d0c0; padding: 12px 14px;
     border-top: 3px solid #8a6a3b;
   }}
   .card.dark {{ background: #1c1914; border-color: #1c1914; color: #f4efe4; }}
-  .card p {{ margin: 0; font-size: 12.5px; line-height: 1.4; color: #6b6458; }}
+  .card p {{ margin: 0; font-size: 12px; line-height: 1.4; color: #6b6458; }}
   .card.dark p {{ color: #c8c0b0; }}
-  .card .num {{ color: #8a6a3b; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; }}
+  .card .num {{ color: #8a6a3b; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; }}
   .title-row {{ display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }}
-  .title-row .bar {{ width: 4px; height: 28px; background: #8a6a3b; }}
+  .title-row .bar {{ width: 4px; height: 26px; background: #8a6a3b; }}
   img.full {{ width: 100%; height: auto; display: block; border: 1px solid #d9d0c0; }}
-  img.half {{ width: 100%; height: 4.6in; object-fit: contain; background: #fffdf8; border: 1px solid #d9d0c0; }}
+  img.half {{ width: 100%; height: 4.4in; object-fit: contain; background: #fffdf8; border: 1px solid #d9d0c0; }}
   .still-side {{
     position: absolute; right: 0; top: 0; bottom: 0; width: 42%;
     background: url('{still}') center/cover no-repeat;
@@ -141,51 +146,59 @@ def build_html() -> str:
     background: linear-gradient(90deg, #f3efe6, transparent 35%);
   }}
   .copy-left {{ max-width: 55%; }}
-  ol.steps {{ margin: 10px 0 0; padding-left: 1.1rem; color: #6b6458; font-size: 13px; line-height: 1.55; }}
+  ol.steps {{ margin: 8px 0 0; padding-left: 1.1rem; color: #6b6458; font-size: 12.5px; line-height: 1.5; }}
   ol.steps strong {{ color: #1c1914; }}
   code {{ font-size: 0.92em; background: #fff; border: 1px solid #d9d0c0; padding: 1px 5px; }}
   .foot {{
-    position: absolute; left: 0.65in; right: 0.65in; bottom: 0.28in;
+    position: absolute; left: 0.6in; right: 0.6in; bottom: 0.26in;
     display: flex; justify-content: space-between; align-items: center;
     font-size: 10px; color: #6b6458; border-top: 1px solid #d9d0c0; padding-top: 6px;
   }}
   .dark .foot, .hero .foot {{ color: #8a8378; border-color: rgba(217,208,192,.25); }}
   .foot a {{ color: #8a6a3b; font-weight: 600; }}
   .row-api {{
-    display: grid; grid-template-columns: 2.6in 1fr; gap: 10px;
-    padding: 8px 12px; border: 1px solid #d9d0c0; margin-bottom: 6px;
-    background: #fffdf8; font-size: 12.5px;
+    display: grid; grid-template-columns: 2.5in 1fr; gap: 8px;
+    padding: 7px 11px; border: 1px solid #d9d0c0; margin-bottom: 5px;
+    background: #fffdf8; font-size: 12px;
   }}
   .row-api:nth-child(even) {{ background: #e8dfcf; }}
-  .row-api strong {{ font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; }}
+  .row-api strong {{ font-family: ui-monospace, Menlo, monospace; font-size: 11px; }}
   .schema {{
-    display: grid; grid-template-columns: 1.5in 1fr; gap: 8px; align-items: center;
-    margin-bottom: 8px;
+    display: grid; grid-template-columns: 1.4in 1fr; gap: 8px; align-items: center;
+    margin-bottom: 7px;
   }}
   .schema .tag {{
-    background: #1c1914; color: #f4efe4; text-align: center; padding: 10px 8px;
-    font-size: 12px; font-weight: 700; letter-spacing: 0.06em;
+    background: #1c1914; color: #f4efe4; text-align: center; padding: 9px 6px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
   }}
   .schema .tag.accent {{ background: #8a6a3b; }}
-  .schema p {{ margin: 0; font-size: 12.5px; color: #6b6458; }}
+  .schema p {{ margin: 0; font-size: 12px; color: #6b6458; }}
   .cta-banner {{
-    background: #1c1914; color: #f4efe4; padding: 18px 20px; margin: 8px 0 14px;
-    display: flex; justify-content: space-between; align-items: center; gap: 16px;
+    background: #1c1914; color: #f4efe4; padding: 16px 18px; margin: 6px 0 12px;
+    display: flex; justify-content: space-between; align-items: center; gap: 14px;
   }}
-  .cta-banner a {{ color: #c4a574; font-size: 18px; font-weight: 700; }}
-  .split-dark {{ display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 10px; }}
-  .panel {{ padding: 16px 18px; min-height: 3.8in; }}
+  .cta-banner a {{ color: #c4a574; font-size: 16px; font-weight: 700; }}
+  .split-dark {{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }}
+  .panel {{ padding: 14px 16px; min-height: 3.2in; }}
   .panel.light {{ background: #fffdf8; border: 1px solid #d9d0c0; }}
   .panel.ink {{ background: #1c1914; color: #f4efe4; }}
-  .panel ul {{ margin: 8px 0 0; padding-left: 1rem; font-size: 13px; line-height: 1.45; color: #6b6458; }}
+  .panel ul {{ margin: 8px 0 0; padding-left: 1rem; font-size: 12.5px; line-height: 1.45; color: #6b6458; }}
   .panel.ink ul {{ color: #c8c0b0; }}
-  .brand-strip {{
-    display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px;
-  }}
+  .brand-strip {{ display: flex; gap: 7px; flex-wrap: wrap; margin-top: 10px; }}
   .brand-strip span {{
-    background: #fffdf8; border: 1px solid #d9d0c0; padding: 8px 12px; font-size: 12px;
+    background: #fffdf8; border: 1px solid #d9d0c0; padding: 6px 10px; font-size: 11px;
     font-family: Georgia, serif;
   }}
+  .theme-card h3 {{ color: #8a6a3b; font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase; }}
+  table.creds {{
+    width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 8px;
+    background: #fffdf8; border: 1px solid #d9d0c0;
+  }}
+  table.creds th, table.creds td {{
+    text-align: left; padding: 8px 12px; border-bottom: 1px solid #d9d0c0;
+  }}
+  table.creds th {{ background: #e8dfcf; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }}
+  .link-row {{ display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; align-items: center; }}
 </style>
 </head>
 <body>
@@ -194,43 +207,52 @@ def build_html() -> str:
 <section class="page hero">
   <div class="hero-bg"></div>
   <div class="accent-bar"></div>
-  <div class="pad" style="display:flex;flex-direction:column;justify-content:center;max-width:5.6in;">
-    <p class="eyebrow">Visual Comfort–flavored · Independent prototype</p>
+  <div class="pad" style="display:flex;flex-direction:column;justify-content:center;max-width:5.8in;">
+    <p class="eyebrow">Interview submission · Independent prototype</p>
     <h1>VC Retail Analytics</h1>
-    <p class="lede">Dealer sell-through, margin depth, seasonality, field grades, materials planning, and vendor scorecards — plus a governed assistant — on synthetic lighting-retail data.</p>
+    <p class="lede">Synthetic Visual Comfort–flavored retail analytics: margin depth, seasonality, field grades, materials planning, and vendor scorecards — plus a governed assistant over warehouse metrics.</p>
     <a class="cta" href="{DEMO_URL}">Open live demo →</a>
-    <p><a class="url" href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a></p>
-    <p class="fine" style="margin-top:10px;">Login <strong style="color:#f4efe4">dlr-0001</strong> / <strong style="color:#f4efe4">vc-demo</strong></p>
+    <div class="link-row">
+      <a class="url" href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a>
+      <a class="url" href="{GITHUB_URL}">GitHub →</a>
+    </div>
+    <p class="fine" style="margin-top:12px;">Prefer login <strong style="color:#f4efe4">operator</strong> / <strong style="color:#f4efe4">vc-demo</strong> · Access email OTP · then hard-refresh</p>
     <div class="chips">
       <span class="chip">Synthetic data</span>
       <span class="chip">Not production</span>
-      <span class="chip">Independent</span>
+      <span class="chip">Always-on</span>
+      <span class="chip">Governed AI</span>
     </div>
-    <p class="fine" style="margin-top:28px;">Paul Rendleman</p>
+    <p class="fine" style="margin-top:22px;">Paul Rendleman</p>
   </div>
 </section>
 
-<!-- 2 Start / clickable -->
+<!-- 2 Start -->
 <section class="page">
   <div class="pad">
     <p class="eyebrow">Start here</p>
-    <div class="title-row"><div class="bar"></div><h2>Click to open the live demo</h2></div>
+    <div class="title-row"><div class="bar"></div><h2>Open the live demo (clickable)</h2></div>
     <div class="cta-banner">
       <div>
-        <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#c4a574;margin-bottom:6px;">Public demo URL</div>
+        <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#c4a574;margin-bottom:6px;">Demo · Access-gated · always-on (Fly)</div>
         <a href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a>
       </div>
       <a class="cta" href="{DEMO_URL}" style="margin:0;">Open demo →</a>
     </div>
     <div class="grid4">
-      <div class="card"><div class="num">01</div><h3>Open</h3><p>Click the banner or button above (works in Preview & Acrobat).</p></div>
-      <div class="card"><div class="num">02</div><h3>Sign in</h3><p><code>dlr-0001</code> / <code>vc-demo</code> · also dlr-0002, operator.</p></div>
-      <div class="card"><div class="num">03</div><h3>Confirm</h3><p>SYNTHETIC badge visible in the app header.</p></div>
-      <div class="card"><div class="num">04</div><h3>Walk</h3><p>Overview → Analytics → Assistant → Catalog.</p></div>
+      <div class="card"><div class="num">01</div><h3>Access OTP</h3><p>Email code from Cloudflare Access (allowlisted guests).</p></div>
+      <div class="card"><div class="num">02</div><h3>Hard-refresh</h3><p>Cmd+Shift+R so Analytics charts load (not cached TSV).</p></div>
+      <div class="card"><div class="num">03</div><h3>Sign in</h3><p><code>operator</code> / <code>vc-demo</code> for full Field &amp; Supply.</p></div>
+      <div class="card"><div class="num">04</div><h3>Walk</h3><p>Overview → Analytics (5 tabs) → Assistant → Catalog.</p></div>
     </div>
-    <p class="fine" style="margin-top:18px;">Inspired by Visual Comfort &amp; Co. public brand language (designer lighting, trade + consumer). Not commissioned client work.</p>
+    <table class="creds">
+      <tr><th>Login</th><th>Password</th><th>Use when</th></tr>
+      <tr><td><code>operator</code></td><td><code>vc-demo</code></td><td>Interview walkthrough — all territories, reps, vendors</td></tr>
+      <tr><td><code>dlr-0001</code></td><td><code>vc-demo</code></td><td>Prove dealer tenancy / session lock</td></tr>
+    </table>
+    <p class="fine" style="margin-top:12px;">Source: <a class="url" href="{GITHUB_URL}">{GITHUB_URL.replace('https://','')}</a> · Not Visual Comfort production systems.</p>
   </div>
-  <div class="foot"><span>VC Retail Analytics · synthetic</span><a href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a><span>2 / 12</span></div>
+  {foot(2)}
 </section>
 
 <!-- 3 Opportunity -->
@@ -239,98 +261,107 @@ def build_html() -> str:
   <div class="pad copy-left">
     <p class="eyebrow">The opportunity</p>
     <div class="title-row"><div class="bar"></div><h2>Designer lighting retail, grounded in data</h2></div>
-    <p class="lede">Public support is strong for FAQ and human escalation — but dealer margin, seasonality, rep grades, and vendor scorecards are missing from chat. This prototype closes that gap with governed warehouse metrics.</p>
+    <p class="lede">Public support handles FAQ and escalation — but dealer margin leakage, seasonal buy-ahead, rep quality, and vendor Prefer/Watch/Exit are missing from chat. This prototype closes that gap with governed warehouse metrics.</p>
     <div class="brand-strip">
       <span>Ceiling</span><span>Wall</span><span>Lamps</span><span>Outdoor</span><span>Fans</span><span>Alabaster</span><span>Cordless</span>
     </div>
-    <div class="grid3" style="margin-top:22px; max-width:5.8in;">
+    <div class="grid3" style="margin-top:18px; max-width:5.8in;">
       <div class="card"><h3>Channels</h3><p>Consumer · Trade · Contract</p></div>
       <div class="card"><h3>Tenancy</h3><p>Dealer scope from session — never the prompt</p></div>
-      <div class="card"><h3>Honesty</h3><p>Every number from a query</p></div>
+      <div class="card"><h3>Honesty</h3><p>Every panel is a named metric query</p></div>
     </div>
   </div>
-  <div class="foot"><span>VC Retail Analytics · synthetic</span><a href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a><span>3 / 12</span></div>
+  {foot(3)}
 </section>
 
-<!-- 4 Local wiring -->
+<!-- 4 Deep analytics themes -->
 <section class="page">
   <div class="pad">
-    <p class="eyebrow">Deep wiring · local</p>
-    <div class="title-row"><div class="bar"></div><h2>Browser → API → SQLite → public edge</h2></div>
-    <img class="full" src="{e2e}" alt="End-to-end wiring diagram" />
+    <p class="eyebrow">Product depth</p>
+    <div class="title-row"><div class="bar"></div><h2>Six analytics themes in the live app</h2></div>
+    <div class="grid5" style="margin-top:8px;">
+      <div class="card theme-card"><h3>Core</h3><p>Channel / family / region bars + stock risk.</p></div>
+      <div class="card theme-card"><h3>Margin</h3><p>Margin %, price realization, mix waterfall, low-margin SKUs.</p></div>
+      <div class="card theme-card"><h3>Season</h3><p>Heatmap, YoY, lead-vs-peak buy-ahead flags.</p></div>
+      <div class="card theme-card"><h3>Field</h3><p>Territories, coverage, whitespace, rep A–D grades.</p></div>
+      <div class="card theme-card"><h3>Supply</h3><p>Days of cover, plan-vs-season, vendor Prefer/Watch/Exit.</p></div>
+    </div>
+    <div class="grid2" style="margin-top:14px;">
+      <div class="card dark">
+        <h3 style="color:#c4a574;">Talk track</h3>
+        <p style="color:#c8c0b0;margin-top:8px;">“Not vanity volume — margin discipline, seasonal buy-ahead before overseas lead, Prefer / Watch / Exit on suppliers.”</p>
+      </div>
+      <div class="card">
+        <h3>Insight callouts</h3>
+        <p>Each Analytics section surfaces 2–4 governed findings (thinnest channel, mix drag, Exit vendors, Pull-forward families) above charts and tables.</p>
+      </div>
+    </div>
+    <p class="fine" style="margin-top:14px;">Assistant prompts: <em>show margin percent</em> · <em>show vendor scorecard</em> · <em>show rep grades</em> · <em>show lead vs peak</em></p>
   </div>
-  <div class="foot"><span>VC Retail Analytics · synthetic</span><a href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a><span>4 / 12</span></div>
+  {foot(4)}
 </section>
 
-<!-- 5 Medallion -->
+<!-- 5 Local wiring -->
+<section class="page">
+  <div class="pad">
+    <p class="eyebrow">Deep wiring · edge</p>
+    <div class="title-row"><div class="bar"></div><h2>Browser → Access → Fly → app + tunnel</h2></div>
+    <img class="full" src="{e2e}" alt="End-to-end wiring diagram" style="max-height:5.4in;object-fit:contain;background:#fffdf8;" />
+    <p class="fine" style="margin-top:8px;">Always-on: Fly machine runs the stdlib app + <code>cloudflared</code> to <strong>vc.datasharkbi.com</strong> (laptop not required).</p>
+  </div>
+  {foot(5)}
+</section>
+
+<!-- 6 Medallion -->
 <section class="page">
   <div class="pad">
     <p class="eyebrow">Warehouse</p>
-    <div class="title-row"><div class="bar"></div><h2>Bronze → Silver → Gold</h2></div>
-    <img class="full" src="{arch}" alt="Medallion architecture" style="margin-bottom:14px;" />
-    <div class="grid3">
-      <div class="card"><h3>Bronze</h3><p>Immutable events keyed by event_id and (dealer, source, version).</p></div>
-      <div class="card"><h3>Validate</h3><p>Reject bad money/units/channels → quarantine.</p></div>
-      <div class="card"><h3>Silver / Gold</h3><p>Latest dealer×SKU facts; channel×region×family rolls.</p></div>
+    <div class="title-row"><div class="bar"></div><h2>Bronze → Silver → Gold (+ monthly &amp; vendors)</h2></div>
+    <img class="full" src="{arch}" alt="Medallion architecture" style="margin-bottom:12px;max-height:3.4in;object-fit:contain;background:#fffdf8;" />
+    <div class="grid4">
+      <div class="card"><h3>Bronze</h3><p>Dealers, products, territories, reps, vendors, immutable events.</p></div>
+      <div class="card"><h3>Silver</h3><p>Dealer×SKU facts + 24-mo monthly + vendor KPI.</p></div>
+      <div class="card"><h3>Gold</h3><p>Channel × region × family rolls.</p></div>
+      <div class="card"><h3>Quality</h3><p>Bad money/channel/versions → quarantine.</p></div>
     </div>
   </div>
-  <div class="foot"><span>VC Retail Analytics · synthetic</span><a href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a><span>5 / 12</span></div>
+  {foot(6)}
 </section>
 
-<!-- 6 Snowflake -->
+<!-- 7 Snowflake -->
 <section class="page">
   <div class="pad">
-    <p class="eyebrow">Deep wiring · Snowflake</p>
-    <div class="title-row"><div class="bar"></div><h2>Optional cloud path — same product contracts</h2></div>
-    <img class="full" src="{snow}" alt="Snowflake wiring" />
-  </div>
-  <div class="foot"><span>VC Retail Analytics · synthetic</span><a href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a><span>6 / 12</span></div>
-</section>
-
-<!-- 7 Snowflake detail -->
-<section class="page">
-  <div class="pad">
-    <p class="eyebrow">Snowflake detail</p>
-    <div class="title-row"><div class="bar"></div><h2>VC_RETAIL_DEMO layout &amp; row policy</h2></div>
+    <p class="eyebrow">Optional cloud path</p>
+    <div class="title-row"><div class="bar"></div><h2>Snowflake — same product contracts</h2></div>
     <div class="grid2">
       <div>
-        <div class="schema"><div class="tag">BRONZE</div><p>DEALERS, PRODUCTS, EVENTS (VARIANT), INGEST_STAGE</p></div>
-        <div class="schema"><div class="tag">SILVER</div><p>FACTS + QUARANTINE</p></div>
-        <div class="schema"><div class="tag">GOLD</div><p>Channel / family / region aggregates</p></div>
-        <div class="schema"><div class="tag accent">GOVERNANCE</div><p>USER_DEALERS + DEALER_SCOPE row-access policy</p></div>
-        <div class="schema"><div class="tag">SERVING</div><p>Secure views for the app + semantic view</p></div>
+        <img class="full" src="{snow}" alt="Snowflake wiring" style="max-height:4.8in;object-fit:contain;background:#fffdf8;" />
       </div>
-      <div class="card dark">
-        <h3 style="color:#c4a574;">Ordered setup</h3>
-        <ol class="steps" style="color:#c8c0b0;">
-          <li><strong style="color:#f4efe4;">doctor</strong> — connection check</li>
-          <li><strong style="color:#f4efe4;">platform</strong> — create DB / schemas / WH</li>
-          <li><strong style="color:#f4efe4;">load</strong> — PUT JSONL → COPY VARIANT</li>
-          <li><strong style="color:#f4efe4;">transform</strong> — SILVER.FACTS</li>
-          <li><strong style="color:#f4efe4;">governance</strong> — RAP on SERVING views</li>
-          <li><strong style="color:#f4efe4;">semantic</strong> — VC_RETAIL_SEMANTICS</li>
-          <li><strong style="color:#f4efe4;">validate · reconcile</strong> — evidence before “live” claims</li>
-        </ol>
-        <p style="margin-top:12px;font-size:12px;color:#c8c0b0;">Run app: <code style="color:#1c1914;background:#f4efe4;">--backend snowflake</code></p>
+      <div>
+        <div class="schema"><div class="tag">BRONZE</div><p>DEALERS, PRODUCTS, EVENTS, MONTHLY, VENDOR_KPI</p></div>
+        <div class="schema"><div class="tag">SILVER</div><p>FACTS + QUARANTINE + MONTHLY</p></div>
+        <div class="schema"><div class="tag accent">GOVERNANCE</div><p>USER_DEALERS + DEALER_SCOPE RAP</p></div>
+        <div class="schema"><div class="tag">SERVING</div><p>Secure views + semantic view</p></div>
+        <p class="fine" style="margin-top:12px;">Only claim “live Snowflake” after <code>scripts.cloud reconcile</code> evidence. Default demo is local SQLite on Fly.</p>
       </div>
     </div>
   </div>
-  <div class="foot"><span>VC Retail Analytics · synthetic</span><a href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a><span>7 / 12</span></div>
+  {foot(7)}
 </section>
 
-<!-- 8 Dual backend + metrics -->
+<!-- 8 Dual backend -->
 <section class="page">
   <div class="pad">
     <p class="eyebrow">Contracts</p>
     <div class="title-row"><div class="bar"></div><h2>One UI · two backends · closed metrics</h2></div>
     <div class="split-dark">
       <div class="panel light">
-        <h3>Local</h3>
+        <h3>Local / Fly</h3>
         <ul>
           <li><code>python3 -m app.server</code></li>
           <li>SQLite <code>data/demo.db</code></li>
           <li>Dealer WHERE from session cookie</li>
-          <li>No cloud credentials</li>
+          <li>Hosted with Cloudflare Tunnel token</li>
         </ul>
       </div>
       <div class="panel ink">
@@ -338,14 +369,14 @@ def build_html() -> str:
         <ul>
           <li><code>--backend snowflake</code></li>
           <li>USE SCHEMA SERVING</li>
-          <li>Same metric SQL shapes</li>
+          <li>Same METRICS SQL shapes</li>
           <li>RAP enforces dealer scope in-warehouse</li>
         </ul>
       </div>
     </div>
-    <img class="full" src="{metrics}" alt="Metric contracts" style="margin-top:12px;max-height:2.6in;object-fit:contain;background:#fffdf8;" />
+    <img class="full" src="{metrics}" alt="Metric contracts" style="margin-top:10px;max-height:2.5in;object-fit:contain;background:#fffdf8;" />
   </div>
-  <div class="foot"><span>VC Retail Analytics · synthetic</span><a href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a><span>8 / 12</span></div>
+  {foot(8)}
 </section>
 
 <!-- 9 API + ask -->
@@ -358,17 +389,17 @@ def build_html() -> str:
         <div class="row-api"><strong>POST /api/login</strong><span>Session cookie · dealer bind</span></div>
         <div class="row-api"><strong>GET /api/summary</strong><span>Overview KPIs</span></div>
         <div class="row-api"><strong>GET /api/metric</strong><span>Closed METRICS vocabulary</span></div>
-        <div class="row-api"><strong>GET /api/analytics</strong><span>Margin / season / field / supply</span></div>
-        <div class="row-api"><strong>POST /api/ask</strong><span>today | proposed router</span></div>
-        <div class="row-api"><strong>POST /api/escalate</strong><span>Handoff JSON (demo)</span></div>
+        <div class="row-api"><strong>GET /api/analytics</strong><span>Margin / season / field / supply bundle</span></div>
+        <div class="row-api"><strong>POST /api/ask</strong><span>today | proposed · insight + table</span></div>
+        <div class="row-api"><strong>POST /api/escalate</strong><span>Structured handoff JSON</span></div>
         <div class="row-api"><strong>GET /api/products</strong><span>Catalog attribute search</span></div>
       </div>
       <div>
-        <img class="full" src="{ask}" alt="Ask routing" />
+        <img class="full" src="{ask}" alt="Ask routing" style="max-height:4.8in;object-fit:contain;background:#fffdf8;" />
       </div>
     </div>
   </div>
-  <div class="foot"><span>VC Retail Analytics · synthetic</span><a href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a><span>9 / 12</span></div>
+  {foot(9)}
 </section>
 
 <!-- 10 Gap + charts -->
@@ -379,62 +410,92 @@ def build_html() -> str:
     <div class="grid2">
       <img class="half" src="{gap}" alt="Today vs Proposed" />
       <div>
-        <img class="full" src="{ch}" alt="Channel chart" style="margin-bottom:8px;" />
-        <img class="full" src="{st}" alt="Stock risk chart" />
+        <img class="full" src="{ch}" alt="Channel chart" style="margin-bottom:8px;max-height:2.2in;object-fit:contain;background:#fffdf8;" />
+        <img class="full" src="{st}" alt="Stock risk chart" style="max-height:2.2in;object-fit:contain;background:#fffdf8;" />
       </div>
     </div>
   </div>
-  <div class="foot"><span>VC Retail Analytics · synthetic</span><a href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a><span>10 / 12</span></div>
+  {foot(10)}
 </section>
 
 <!-- 11 Demo script -->
 <section class="page">
   <div class="pad">
     <p class="eyebrow">Try it</p>
-    <div class="title-row"><div class="bar"></div><h2>Prompts that exercise the wiring</h2></div>
+    <div class="title-row"><div class="bar"></div><h2>~10 minute walkthrough</h2></div>
     <div class="cta-banner">
       <a href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a>
       <a class="cta" href="{DEMO_URL}" style="margin:0;">Open live demo →</a>
     </div>
     <div class="split-dark">
-      <div class="panel light">
-        <h3>Today</h3>
+      <div class="panel light" style="min-height:3.4in;">
+        <h3>Today (site pattern)</h3>
         <ul>
-          <li><em>custom order lead time</em> → FAQ + source</li>
-          <li><em>what is open box</em> → policy snippet</li>
-          <li><em>where is my order 12345</em> → escalate stub</li>
+          <li><em>custom order lead time</em> → FAQ snippet</li>
+          <li><em>what is open box</em> → policy</li>
+          <li><em>where is my order 12345</em> → escalate to form/phone</li>
+          <li>Gap: no warehouse grounding</li>
         </ul>
       </div>
-      <div class="panel ink">
-        <h3 style="color:#c4a574;">Proposed</h3>
+      <div class="panel ink" style="min-height:3.4in;">
+        <h3 style="color:#c4a574;">Proposed (governed)</h3>
         <ul>
-          <li>Login <strong>operator</strong> / vc-demo (full Field &amp; Supply)</li>
-          <li>Hard-refresh after Access OTP</li>
-          <li><em>show margin percent</em> → insight + table + SQL</li>
+          <li>Login <strong>operator</strong> / vc-demo</li>
+          <li>Analytics: Margin → Season → Field → Supply</li>
+          <li><em>show margin percent</em> → insight + chart + SQL</li>
           <li><em>show vendor scorecard</em> → Prefer / Watch / Exit</li>
-          <li><em>show rep grades</em> → composite A–D</li>
-          <li><em>alabaster</em> → catalog hits</li>
-          <li><em>invent next quarter forecast</em> → refuse</li>
+          <li><em>show rep grades</em> → A–D composite</li>
+          <li><em>invent a forecast</em> → refuse</li>
         </ul>
       </div>
     </div>
-    <p class="fine" style="margin-top:16px;">Offline assistant is a FAQ + metric router — <strong>not an LLM</strong>. Only claim live Snowflake after reconcile evidence.</p>
+    <p class="fine" style="margin-top:12px;">Offline assistant is a FAQ + metric router — <strong>not an LLM</strong>. Full script: <code>docs/DEMO_SCRIPT.md</code>.</p>
   </div>
-  <div class="foot"><span>VC Retail Analytics · synthetic</span><a href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a><span>11 / 12</span></div>
+  {foot(11)}
 </section>
 
-<!-- 12 Close -->
+<!-- 12 Honesty -->
+<section class="page dark">
+  <div class="pad">
+    <p class="eyebrow">Engineering honesty</p>
+    <div class="title-row"><div class="bar"></div><h2 style="color:#f4efe4;">What this is — and isn’t</h2></div>
+    <div class="grid3" style="margin-top:18px;">
+      <div class="card dark" style="border-top-color:#c4a574;">
+        <h3 style="color:#c4a574;">Is</h3>
+        <p>Independent synthetic portfolio piece · Visual Comfort–flavored public brand language · always-on governed demo</p>
+      </div>
+      <div class="card dark" style="border-top-color:#c4a574;">
+        <h3 style="color:#c4a574;">Isn’t</h3>
+        <p>Not Visual Comfort production data · not commissioned client work · not a live LLM · not Openflow</p>
+      </div>
+      <div class="card dark" style="border-top-color:#c4a574;">
+        <h3 style="color:#c4a574;">Submit pack</h3>
+        <p>Live URL + Access · this PDF · GitHub source · operator walkthrough</p>
+      </div>
+    </div>
+    <div class="link-row" style="margin-top:28px;">
+      <a class="url" href="{DEMO_URL}">Demo</a>
+      <a class="url" href="{GITHUB_URL}">Source</a>
+    </div>
+  </div>
+  {foot(12)}
+</section>
+
+<!-- 13 Close -->
 <section class="page hero">
   <div class="hero-bg"></div>
   <div class="accent-bar"></div>
   <div class="pad" style="display:flex;flex-direction:column;justify-content:center;max-width:5.8in;">
     <p class="eyebrow">Independent · Synthetic · Governed</p>
     <h1>Ground retail AI<br/>in metrics.</h1>
-    <p class="lede">Not Visual Comfort production data. Not commissioned client work. Built so the team can see how dealer analytics and a trustworthy assistant should be wired.</p>
+    <p class="lede">Built so the team can see how dealer analytics and a trustworthy assistant should be wired — across margin, season, field, and supply.</p>
     <a class="cta" href="{DEMO_URL}">Open live demo →</a>
-    <p><a class="url" href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a></p>
-    <p class="fine" style="margin-top:8px;">dlr-0001 / vc-demo</p>
-    <p class="fine" style="margin-top:28px;color:#f4efe4;">Paul Rendleman</p>
+    <div class="link-row">
+      <a class="url" href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a>
+      <a class="url" href="{GITHUB_URL}">github.com/prendleman/vc-retail-analytics</a>
+    </div>
+    <p class="fine" style="margin-top:10px;">operator / vc-demo · Access OTP · hard-refresh</p>
+    <p class="fine" style="margin-top:24px;color:#f4efe4;">Paul Rendleman</p>
   </div>
 </section>
 
