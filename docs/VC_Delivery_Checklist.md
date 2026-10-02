@@ -10,7 +10,7 @@ Policy **Allowlist email** (`730821e2-a838-49ec-9b19-6b7b7614fbbe`), single Incl
 | --- | --- | --- | --- |
 | Tyler Rose | `tyler@perceptiverecruiting.com` | **Confirmed permitted** | Visible on policy detail after save |
 | Janice Egenberg | `jegenberg@visualcomfort.com` | **Confirmed permitted** | Visible on policy detail after save |
-| Rahul Agarwal | `ragarwal@visualcomfort.com` | **Confirmed permitted** (policy entry) | Mailbox identity remains an **unverified guess**; a saved entry means that exact address is permitted, not that the mailbox exists or is Rahul's |
+| Rahul Agarwal | `ragarwal@visualcomfort.com` | **Confirmed permitted** | Address confirmed correct by Paul 2026-10-02 ~5:54 PM CT |
 | Owner | `prendleman@aureaquantra.com` | Confirmed permitted | Preserved |
 
 No domain-wide allow; Access gate unchanged otherwise. Policy status is not evidence that any reviewer has signed in.
@@ -27,7 +27,7 @@ API token path remains blocked (`access.api.error.not_enabled`); UI is the opera
 | Change | Added IdP **One-time PIN login** (`1c0b31c2-723d-49e6-bd9e-1db30128807f`) at 22:07Z via owner dash session. Nothing removed; policy, app, Cloudflare IdP untouched. |
 | Verification | Fresh-session login page now shows "Cloudflare — or — Email / Send login code" (22:08:41Z, re-checked ×4 to 22:09:43Z). Unauth `/` and `/api/ask` → 302 to Access. |
 | Rollback | Zero Trust → Integrations → Identity providers → delete "One-time PIN login". |
-| Remaining | Tyler: request **one** fresh code using the **Email** box (not the Cloudflare button) with `tyler@perceptiverecruiting.com`; check spam/quarantine for `noreply@notify.cloudflare.com` if nothing arrives. Confirm the address he actually typed. **Status: configuration corrected; Tyler's login pending.** |
+| Outcome | **Resolved.** Access log: `2026-10-02T22:16:46Z tyler@perceptiverecruiting.com allowed=true connection=onetimepin`; Tyler confirmed he is in (~5:50 PM CT). Janice/Rahul not yet signed in; both addresses confirmed and permitted. |
 
 ## Clarification-message fix
 
@@ -50,6 +50,6 @@ Earlier full walkthrough remains attributed to `b40c9f6` (~20:45Z). Targeted fix
 | Repo | https://github.com/prendleman/vc-retail-analytics |
 | Demo login | `operator` / `vc-demo` (after Access OTP) |
 
-**Status:** technical package ready to send (PDF + demo URL + GitHub + demo login). Rahul's mailbox is still an unverified guess; if he does not receive the OTP, confirm his address and add the correct one.
+**Status:** package sent; Tyler signed in via email code (22:16Z). All three reviewer addresses confirmed and permitted.
 
 Nothing emailed from this task.

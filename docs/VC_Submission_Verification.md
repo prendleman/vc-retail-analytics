@@ -43,7 +43,7 @@ Inspected via Zero Trust UI (account `c2b6521dc94949e90c39d6563b030802`). Policy
 | `prendleman@aureaquantra.com` | Confirmed permitted | Preserved; visible on policy detail |
 | `tyler@perceptiverecruiting.com` | Confirmed permitted | Added via Zero Trust UI ~2026-10-02T21:27Z; "Policy saved successfully"; visible on fresh policy detail load |
 | `jegenberg@visualcomfort.com` | Confirmed permitted | Same save |
-| `ragarwal@visualcomfort.com` | Confirmed permitted (policy entry) | Same save; mailbox identity remains an unverified guess |
+| `ragarwal@visualcomfort.com` | Confirmed permitted | Same save; address confirmed correct 2026-10-02 |
 
 Policy membership is not evidence of any reviewer sign-in. API guest management remains blocked (`access.api.error.not_enabled`); UI route used.
 
@@ -63,7 +63,7 @@ Root cause: the org was created with the Cloudflare-account identity provider as
 
 Change made: one IdP added (above). Nothing removed, no bypass, no domain-wide rule. Rollback: delete identity provider `1c0b31c2-723d-49e6-bd9e-1db30128807f` (Zero Trust → Integrations → Identity providers). Unauthenticated `/` and `/api/ask` still return 302 to the Access login.
 
-Reviewer sign-in with the email code has **not** yet been confirmed by any reviewer.
+Confirmed: Access auth log entry `2026-10-02T22:16:46Z tyler@perceptiverecruiting.com vc.datasharkbi.com allowed=true connection=onetimepin`; reviewer reported successful entry to the demo. Other reviewers have not yet signed in.
 
 ## Local checks (earlier)
 
