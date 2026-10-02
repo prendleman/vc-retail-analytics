@@ -17,6 +17,18 @@ No domain-wide allow; Access gate unchanged otherwise. Policy status is not evid
 
 API token path remains blocked (`access.api.error.not_enabled`); UI is the operational route (`scripts/cf_access_add_guest_playwright.py` for future guests).
 
+## Tyler "no code sent" — 2026-10-02 ~4:54 PM CT
+
+| Item | Finding |
+| --- | --- |
+| Root cause | Org had only the **Cloudflare-account** identity provider (`restrict_to_account_members: true`); **no One-time PIN provider existed**. Login screen showed "Sign in with: Cloudflare" only → that path goes to the Cloudflare dashboard login (with its "Continue with SSO" button), which never emails a demo code and would reject a non-member anyway. Owner logins worked only because Paul is an account member. |
+| Allowlist | Correct and unchanged — `tyler@perceptiverecruiting.com` present; not the cause. |
+| Logs 21:30–22:10Z | Owner logins only. No Tyler entry — expected; Access logs nothing until a code is submitted. |
+| Change | Added IdP **One-time PIN login** (`1c0b31c2-723d-49e6-bd9e-1db30128807f`) at 22:07Z via owner dash session. Nothing removed; policy, app, Cloudflare IdP untouched. |
+| Verification | Fresh-session login page now shows "Cloudflare — or — Email / Send login code" (22:08:41Z, re-checked ×4 to 22:09:43Z). Unauth `/` and `/api/ask` → 302 to Access. |
+| Rollback | Zero Trust → Integrations → Identity providers → delete "One-time PIN login". |
+| Remaining | Tyler: request **one** fresh code using the **Email** box (not the Cloudflare button) with `tyler@perceptiverecruiting.com`; check spam/quarantine for `noreply@notify.cloudflare.com` if nothing arrives. Confirm the address he actually typed. **Status: configuration corrected; Tyler's login pending.** |
+
 ## Clarification-message fix
 
 | Item | Status |

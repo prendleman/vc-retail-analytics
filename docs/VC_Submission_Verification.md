@@ -16,7 +16,7 @@
 
 | Component | Status | Evidence |
 | --- | --- | --- |
-| Hosted app + SQLite | Running | Fly machine started; Access OTP; authenticated checks on public hostname |
+| Hosted app + SQLite | Running | Fly machine started; Cloudflare Access gate; authenticated checks on public hostname (owner signed in via the Cloudflare-account IdP, not OTP — see below) |
 | Deterministic assistant | Implemented + tested | Exact-match router; hosted metric + clarify checks |
 | Session dealer scope | Implemented + tested | Local isolation suite |
 | Analytics sections | Implemented | Confirmed on hosted UI (full walkthrough + brief Core panel after fix deploy) |
@@ -47,6 +47,24 @@ Inspected via Zero Trust UI (account `c2b6521dc94949e90c39d6563b030802`). Policy
 
 Policy membership is not evidence of any reviewer sign-in. API guest management remains blocked (`access.api.error.not_enabled`); UI route used.
 
+## Access login method correction (2026-10-02T22:07Z)
+
+Reported: a reviewer entered an email on the Cloudflare screen and received no code. Read-only inspection (authenticated dash session, account `c2b6521d…`) found:
+
+| Item | Before | After |
+| --- | --- | --- |
+| Identity providers on org `dark-wood-4a5f.cloudflareaccess.com` | One only: type `cloudflare` (`53189405-…`, `restrict_to_account_members: true`) — **no One-time PIN provider** | `cloudflare` unchanged **+** `onetimepin` "One-time PIN login" (`1c0b31c2-723d-49e6-bd9e-1db30128807f`) |
+| Fresh-session login page for `vc.datasharkbi.com` | "Sign in with: Cloudflare" only (no email field) | "Sign in with: Cloudflare — or — Email / Send login code" (email input present; confirmed 22:08:41Z–22:09:43Z) |
+| App `vc` `allowed_idps` | `[]` (all providers) | unchanged |
+| Policy `Allowlist email` | 4 emails, Allow, no Require/Exclude | unchanged |
+| Access auth logs 21:30–22:10Z | Only owner logins (`allowed=true`, connection `cloudflare`); no reviewer entries — expected, since Access logs only after a code is submitted | — |
+
+Root cause: the org was created with the Cloudflare-account identity provider as its only login method, so the Access screen offered no email-code option; the owner could sign in because he is an account member, reviewers could not. The policy allowlist was correct and was never the limiting factor. Earlier "Access OTP" wording in these notes described the intended flow, not the live one, before this correction.
+
+Change made: one IdP added (above). Nothing removed, no bypass, no domain-wide rule. Rollback: delete identity provider `1c0b31c2-723d-49e6-bd9e-1db30128807f` (Zero Trust → Integrations → Identity providers). Unauthenticated `/` and `/api/ask` still return 302 to the Access login.
+
+Reviewer sign-in with the email code has **not** yet been confirmed by any reviewer.
+
 ## Local checks (earlier)
 
 | Check | Result |
@@ -58,7 +76,7 @@ Policy membership is not evidence of any reviewer sign-in. API guest management 
 
 ## Screenshots in PDF
 
-Local synthetic captures in `docs/deck/assets/shot_*.png` (not hosted OTP session).
+Local synthetic captures in `docs/deck/assets/shot_*.png` (not a hosted Access session).
 
 ## Deliverables
 
