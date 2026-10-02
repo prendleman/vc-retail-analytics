@@ -1,0 +1,14 @@
+.git
+.venv
+__pycache__
+*.pyc
+data/
+.env
+.env.*
+docs/deck/
+docs/evidence/
+*.pptx
+*.pdf
+scripts/bin/
+.cursor
+tests/

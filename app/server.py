@@ -1,0 +1,474 @@
+"""Local + Snowflake dual-backend HTTP app for VC Retail Analytics."""
+from __future__ import annotations
+
+import argparse
+import json
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import parse_qs, urlparse
+
+from app import demo_auth
+from app.core import (
+    DB,
+    FAQ,
+    METRICS,
+    ROOT,
+    connect,
+    interpret_metric,
+    match_faq,
+    metric_sql,
+    now,
+    product_lookup,
+    seed,
+)
+
+STATIC = ROOT / "app" / "static"
+ALLOWED_STATIC = {
+    "/": "marketing.html",
+    "/app": "index.html",
+    "/login": "login.html",
+    "/app.js": "app.js",
+    "/style.css": "style.css",
+    "/vc-hero.jpg": "vc-hero.jpg",
+    "/vc-still.jpg": "vc-still.jpg",
+}
+CTYPES = {
+    "html": "text/html; charset=utf-8",
+    "css": "text/css",
+    "js": "text/javascript",
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "png": "image/png",
+}
+
+
+class Store:
+    def __init__(self, path, backend="local", connection="aq_vc_reader"):
+        self.path = path
+        self.backend = backend
+        self.connection = connection
+
+    def rows(self, sql, params=()):
+        if self.backend == "local":
+            c = connect(self.path)
+            try:
+                return [dict(r) for r in c.execute(sql, params)]
+            finally:
+                c.close()
+        import snowflake.connector
+
+        with snowflake.connector.connect(
+            connection_name=self.connection,
+            session_parameters={"QUERY_TAG": "vc-retail-demo-app", "STATEMENT_TIMEOUT_IN_SECONDS": 30},
+        ) as c:
+            c.cursor().execute("USE DATABASE VC_RETAIL_DEMO")
+            c.cursor().execute("USE SCHEMA SERVING")
+            cur = c.cursor().execute(sql.replace("?", "%s"), params)
+            columns = [d[0].lower() for d in cur.description]
+            return [dict(zip(columns, r)) for r in cur.fetchall()]
+
+    def audit(self, dealer, metric, n):
+        c = connect(self.path)
+        c.execute(
+            "INSERT INTO audit(at,dealer_id,metric,rows_returned) VALUES(?,?,?,?)",
+            (now(), dealer or "*", metric, n),
+        )
+        c.commit()
+        c.close()
+
+
+class Handler(BaseHTTPRequestHandler):
+    def log_message(self, fmt, *args):
+        print(f"[{self.log_date_time_string()}] {fmt % args}", flush=True)
+
+    def send(self, data, status=200, content_type="application/json", extra_headers=None):
+        raw = json.dumps(data, default=str).encode() if content_type == "application/json" else data
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(raw)))
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Cache-Control", "no-store")
+        if extra_headers:
+            for k, v in extra_headers.items():
+                self.send_header(k, v)
+        self.end_headers()
+        self.wfile.write(raw)
+
+    def session(self):
+        return demo_auth.parse_cookie(self.headers.get("Cookie"))
+
+    def same_origin_ok(self):
+        origin = self.headers.get("Origin")
+        if not origin:
+            return True
+        host = self.headers.get("Host", "")
+        return origin in (f"http://{host}", f"https://{host}")
+
+    def scope(self, query):
+        requested = query.get("dealer", [""])[0] or None
+        sess = self.session()
+        if sess and sess.get("dealer"):
+            if requested and requested != sess["dealer"]:
+                raise PermissionError("Dealer access denied")
+            dealer = sess["dealer"]
+        elif self.server.dealer:
+            if requested and requested != self.server.dealer:
+                raise PermissionError("Dealer access denied")
+            dealer = self.server.dealer
+        else:
+            dealer = requested
+        if dealer and not self.server.store.rows("SELECT dealer_id FROM dealers WHERE dealer_id=?", [dealer]):
+            raise ValueError("Unknown or inaccessible dealer")
+        return dealer
+
+    def do_GET(self):
+        try:
+            u = urlparse(self.path)
+            q = parse_qs(u.query)
+            s = self.server.store
+            if u.path.startswith("/api/"):
+                if u.path == "/api/session":
+                    sess = self.session()
+                    return self.send(
+                        {
+                            "authenticated": bool(sess),
+                            "session": sess,
+                            "accounts": demo_auth.public_accounts(),
+                            "password_hint": demo_auth.DEMO_PASSWORD,
+                        }
+                    )
+                if u.path == "/api/health":
+                    sess = self.session()
+                    scope = (sess.get("dealer") if sess and sess.get("dealer") else None) or self.server.dealer or "all dealers"
+                    return self.send(
+                        {
+                            "ok": True,
+                            "backend": s.backend,
+                            "scope": scope,
+                            "synthetic": True,
+                            "label": "VC Retail Analytics — synthetic demo",
+                        }
+                    )
+                dealer = self.scope(q)
+                where = " WHERE dealer_id=?" if dealer else ""
+                params = [dealer] if dealer else []
+                if u.path == "/api/catalog":
+                    return self.send(
+                        {
+                            "metrics": {k: v["description"] for k, v in METRICS.items()},
+                            "faq_ids": [f["id"] for f in FAQ],
+                            "lineage": [
+                                "synthetic dealer + catalog",
+                                "bronze events",
+                                "validated silver_facts",
+                                "gold_channel_family",
+                                "dashboard / governed tools",
+                            ],
+                            "grain": "One current fact per (dealer_id, sku_id)",
+                            "amounts": "USD cents in Silver; dollars in Gold/API",
+                        }
+                    )
+                if u.path == "/api/dealers":
+                    return self.send(s.rows("SELECT * FROM dealers" + where + " ORDER BY dealer_id LIMIT 200", params))
+                if u.path == "/api/products":
+                    term = (q.get("q", [""])[0] or "").strip()
+                    if s.backend == "local":
+                        c = connect(s.path)
+                        try:
+                            rows = product_lookup(c, term) if term else [dict(r) for r in c.execute("SELECT * FROM products LIMIT 40")]
+                        finally:
+                            c.close()
+                    else:
+                        if term:
+                            like = f"%{term.lower()}%"
+                            rows = s.rows(
+                                "SELECT * FROM products WHERE LOWER(name) LIKE ? OR LOWER(family) LIKE ? OR LOWER(designer) LIKE ? OR LOWER(finish) LIKE ? LIMIT 8",
+                                [like, like, like, like],
+                            )
+                        else:
+                            rows = s.rows("SELECT * FROM products LIMIT 40")
+                    return self.send(rows)
+                if u.path == "/api/summary":
+                    row = s.rows(
+                        "SELECT COUNT(*) AS skus, COALESCE(SUM(units_sold),0) AS units_sold, "
+                        "COALESCE(SUM(net_sales_cents),0)/100.0 AS net_sales, "
+                        "COALESCE(SUM(margin_cents),0)/100.0 AS margin, "
+                        "COALESCE(SUM(on_hand),0) AS on_hand FROM silver_facts" + where,
+                        params,
+                    )[0]
+                    row["dealers"] = s.rows("SELECT COUNT(*) AS n FROM dealers" + where, params)[0]["n"]
+                    row["quarantined"] = s.rows("SELECT COUNT(*) AS n FROM quarantine" + where, params)[0]["n"]
+                    return self.send(row)
+                if u.path == "/api/metric":
+                    name = q.get("name", ["portfolio"])[0]
+                    sql, p = metric_sql(name, dealer)
+                    start = time.perf_counter()
+                    rows = s.rows(sql, p)
+                    s.audit(dealer, name, len(rows))
+                    return self.send(
+                        {
+                            "metric": name,
+                            "description": METRICS[name]["description"],
+                            "sql": sql,
+                            "parameters": p,
+                            "rows": rows,
+                            "elapsed_ms": round((time.perf_counter() - start) * 1000, 2),
+                        }
+                    )
+                if u.path == "/api/analytics":
+                    start = time.perf_counter()
+                    deep_keys = [
+                        "by_channel",
+                        "by_family",
+                        "by_region",
+                        "stock_risk",
+                        "margin_pct",
+                        "price_realization",
+                        "low_margin_skus",
+                        "margin_waterfall",
+                        "reorder_candidates",
+                        "days_of_cover",
+                        "units_by_month",
+                        "seasonal_index",
+                        "yoy_family",
+                        "lead_vs_peak",
+                        "territory_perf",
+                        "territory_coverage",
+                        "whitespace",
+                        "plan_vs_season",
+                        "rep_leaderboard",
+                        "rep_grade",
+                        "vendor_otif",
+                        "vendor_scorecard",
+                    ]
+                    payload = {
+                        "synthetic": True,
+                        "dealer_scope": dealer or "all",
+                        "summary": s.rows(
+                            "SELECT COUNT(*) AS skus, COALESCE(SUM(units_sold),0) AS units_sold, "
+                            "COALESCE(SUM(net_sales_cents),0)/100.0 AS net_sales, "
+                            "COALESCE(SUM(margin_cents),0)/100.0 AS margin, "
+                            "ROUND(100.0 * COALESCE(SUM(margin_cents),0) / NULLIF(SUM(net_sales_cents),0), 1) AS margin_pct "
+                            "FROM silver_facts" + where,
+                            params,
+                        )[0],
+                        "elapsed_ms": 0,
+                    }
+                    for key in deep_keys:
+                        payload[key] = s.rows(*metric_sql(key, dealer))
+                    payload["elapsed_ms"] = round((time.perf_counter() - start) * 1000, 2)
+                    s.audit(dealer, "analytics", len(payload["by_channel"]))
+                    return self.send(payload)
+                if u.path == "/api/faq":
+                    return self.send({"items": FAQ, "note": "Synthetic policy copy inspired by public FAQ language"})
+                if u.path == "/api/quality":
+                    return self.send(s.rows("SELECT * FROM quarantine" + where + " ORDER BY event_id LIMIT 50", params))
+                if u.path == "/api/audit":
+                    c = connect(s.path)
+                    rows = [dict(r) for r in c.execute("SELECT * FROM audit" + where.replace("dealer_id", "dealer_id") + " ORDER BY id DESC LIMIT 30", params)]
+                    c.close()
+                    return self.send(rows)
+                return self.send({"error": "Not found"}, 404)
+
+            if u.path == "/app" and not self.session() and not self.server.dealer:
+                self.send_response(302)
+                self.send_header("Location", "/login")
+                self.end_headers()
+                return
+            if u.path not in ALLOWED_STATIC:
+                return self.send({"error": "Not found"}, 404)
+            file = STATIC / Path(ALLOWED_STATIC[u.path])
+            self.send(file.read_bytes(), content_type=CTYPES[file.suffix[1:]])
+        except PermissionError as e:
+            self.send({"error": str(e)}, 403)
+        except ValueError as e:
+            self.send({"error": str(e)}, 400)
+        except Exception as e:
+            print(type(e).__name__, str(e))
+            self.send({"error": "Request failed. Check server log."}, 500)
+
+    def do_POST(self):
+        try:
+            if not self.same_origin_ok():
+                raise PermissionError("Cross-origin request rejected")
+            if "application/json" not in self.headers.get("Content-Type", ""):
+                raise ValueError("JSON required")
+            size = int(self.headers.get("Content-Length", "0"))
+            if size > 8192:
+                raise ValueError("Request too large")
+            body = json.loads(self.rfile.read(size) or b"{}")
+            s = self.server.store
+            path = urlparse(self.path).path
+            if path == "/api/login":
+                sess = demo_auth.authenticate(body.get("username"), body.get("password"))
+                if not sess:
+                    raise PermissionError("Invalid demo credentials")
+                return self.send({"ok": True, "session": sess}, extra_headers={"Set-Cookie": demo_auth.issue_cookie(sess)})
+            if path == "/api/logout":
+                return self.send({"ok": True}, extra_headers={"Set-Cookie": demo_auth.clear_cookie()})
+
+            dealer = self.scope({"dealer": [body.get("dealer", "")]})
+            if path == "/api/ask":
+                question = (body.get("question") or "").strip()
+                mode = (body.get("mode") or "proposed").lower()
+                if mode == "today":
+                    # Reconstruct current-site pattern: FAQ snippet or escalate stub.
+                    faq = match_faq(question)
+                    if faq:
+                        return self.send(
+                            {
+                                "mode": "today_site_pattern",
+                                "kind": "faq",
+                                "answer": faq["a"],
+                                "source": faq["id"],
+                                "trace": ["observe_public_faq_language", "return_static_policy_snippet"],
+                                "improvement_gap": "No warehouse grounding, no tool SQL, no structured retail analytics.",
+                            }
+                        )
+                    return self.send(
+                        {
+                            "mode": "today_site_pattern",
+                            "kind": "escalate",
+                            "answer": (
+                                "I can help with common FAQ topics. For order status, returns, or account-specific "
+                                "questions, please use the contact form, call Consumer|Trade 877.762.2323, or email "
+                                "customerservice@visualcomfort.com (public lanes — observation only)."
+                            ),
+                            "trace": ["no_faq_match", "escalate_to_human_form_or_phone"],
+                            "improvement_gap": "Dead-end to form/phone; no governed inventory/margin/sell-through answers.",
+                        }
+                    )
+
+                # Proposed: FAQ + catalog + verified metrics
+                faq = match_faq(question)
+                if faq and not any(
+                    k in question.lower()
+                    for k in (
+                        "sales",
+                        "margin",
+                        "stock",
+                        "portfolio",
+                        "channel",
+                        "family",
+                        "region",
+                        "quality",
+                        "reorder",
+                        "season",
+                        "territory",
+                        "whitespace",
+                        "rep",
+                        "vendor",
+                        "realization",
+                        "cover",
+                    )
+                ):
+                    return self.send(
+                        {
+                            "mode": "offline governed assistant (not LLM)",
+                            "kind": "faq",
+                            "answer": faq["a"],
+                            "source": faq["id"],
+                            "trace": ["match_faq", "return_grounded_policy", "no_fabricated_order_status"],
+                        }
+                    )
+                if any(k in question.lower() for k in ("sku", "alabaster", "chandelier", "sconce", "fan", "cordless", "finish", "designer")):
+                    c = connect(s.path)
+                    try:
+                        hits = product_lookup(c, question, limit=5)
+                    finally:
+                        c.close()
+                    if hits:
+                        return self.send(
+                            {
+                                "mode": "offline governed assistant (not LLM)",
+                                "kind": "catalog",
+                                "answer": f"Found {len(hits)} synthetic catalog matches.",
+                                "rows": hits,
+                                "trace": ["catalog_lookup", "return_attributes_only"],
+                            }
+                        )
+                try:
+                    name = interpret_metric(question)
+                except ValueError as err:
+                    return self.send(
+                        {
+                            "mode": "offline governed assistant (not LLM)",
+                            "kind": "clarify",
+                            "answer": str(err),
+                            "trace": ["resolve_verified_question", "refuse_unguarded_generation"],
+                        },
+                        400,
+                    )
+                sql, p = metric_sql(name, dealer)
+                rows = s.rows(sql, p)
+                s.audit(dealer, name, len(rows))
+                return self.send(
+                    {
+                        "mode": "offline governed assistant (not LLM)",
+                        "kind": "metric",
+                        "metric": name,
+                        "description": METRICS[name]["description"],
+                        "sql": sql,
+                        "parameters": p,
+                        "rows": rows,
+                        "trace": [
+                            "discover_catalog",
+                            "resolve_verified_question",
+                            "compile_scoped_metric",
+                            "execute_read_only_metric",
+                            "audit_result",
+                        ],
+                    }
+                )
+            if path == "/api/escalate":
+                packet = {
+                    "at": now(),
+                    "dealer_scope": dealer or "all",
+                    "lane": body.get("lane") or "Consumer|Trade",
+                    "question": body.get("question") or "",
+                    "reason": body.get("reason") or "needs_human",
+                    "context_metrics": body.get("context") or {},
+                }
+                return self.send(
+                    {
+                        "ok": True,
+                        "escalation": packet,
+                        "note": "Structured handoff packet for a human agent — demo only, not sent externally.",
+                    }
+                )
+            self.send({"error": "Not found"}, 404)
+        except PermissionError as e:
+            self.send({"error": str(e)}, 403)
+        except (ValueError, KeyError) as e:
+            self.send({"error": str(e)}, 400)
+        except Exception as e:
+            print(type(e).__name__, str(e))
+            self.send({"error": "Request failed. Check server log."}, 500)
+
+
+def main():
+    p = argparse.ArgumentParser()
+    p.add_argument("--port", type=int, default=int(__import__("os").environ.get("PORT", "8770")))
+    p.add_argument("--host", default=__import__("os").environ.get("HOST", "127.0.0.1"))
+    p.add_argument("--dealer")
+    p.add_argument("--db", type=Path, default=DB)
+    p.add_argument("--backend", choices=["local", "snowflake"], default="local")
+    p.add_argument("--connection", default="aq_vc_reader")
+    a = p.parse_args()
+    if not a.db.exists():
+        print("Seeding synthetic VC retail dealers + catalog...", flush=True)
+        print(seed(a.db), flush=True)
+    server = ThreadingHTTPServer((a.host, a.port), Handler)
+    server.dealer = a.dealer
+    server.store = Store(a.db, a.backend, a.connection)
+    print(
+        f"VC Retail Analytics | http://{a.host}:{a.port} | {a.backend} | "
+        + (a.dealer or "session/operator"),
+        flush=True,
+    )
+    server.serve_forever()
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,2 @@
+# Optional cloud mode only.
+snowflake-connector-python>=3.12,<5

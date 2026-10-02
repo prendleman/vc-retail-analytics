@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Login · VC Retail Analytics</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body class="login">
+  <form id="form" class="card">
+    <h1>Demo login</h1>
+    <p class="fine">Password: <code>vc-demo</code>. Prefer <strong>operator</strong> for full Field/Supply. Synthetic accounts only.</p>
+    <p class="fine">After Cloudflare Access: hard-refresh (Cmd+Shift+R) if charts look like plain text.</p>
+    <label>Username
+      <select id="username"></select>
+    </label>
+    <label>Password
+      <input id="password" type="password" value="vc-demo" autocomplete="off" />
+    </label>
+    <button type="submit">Continue</button>
+    <p id="err" class="err" hidden></p>
+  </form>
+  <script>
+    async function boot() {
+      const s = await fetch('/api/session').then(r => r.json());
+      const sel = document.getElementById('username');
+      for (const a of s.accounts) {
+        const o = document.createElement('option');
+        o.value = a.username;
+        o.textContent = `${a.username} — ${a.label}`;
+        sel.appendChild(o);
+      }
+    }
+    document.getElementById('form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const err = document.getElementById('err');
+      err.hidden = true;
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          username: document.getElementById('username').value,
+          password: document.getElementById('password').value,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { err.textContent = data.error || 'Login failed'; err.hidden = false; return; }
+      location.href = '/app';
+    });
+    boot();
+  </script>
+</body>
+</html>

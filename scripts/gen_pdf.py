@@ -1,0 +1,472 @@
+#!/usr/bin/env python3
+"""Beautiful Visual Comfort–flavored PDF deck with clickable demo URL.
+
+Renders branded HTML → Chromium print-to-PDF (links work in Preview / Acrobat).
+"""
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+from playwright.sync_api import sync_playwright
+
+ROOT = Path(__file__).resolve().parents[1]
+ASSETS = ROOT / "docs" / "deck" / "assets"
+OUT_HTML = ROOT / "docs" / "deck" / "VC_Retail_Analytics_Deck.html"
+OUT_PDF = ROOT / "docs" / "deck" / "VC_Retail_Analytics_Deck.pdf"
+DEMO_URL = os.environ.get("VC_DEMO_URL", "https://vc.datasharkbi.com/").rstrip("/") + "/"
+
+
+def uri(name: str) -> str:
+    return (ASSETS / name).resolve().as_uri()
+
+
+def build_html() -> str:
+    hero = uri("vc-hero-lighting.jpg")
+    still = uri("vc-product-still.jpg")
+    e2e = uri("wiring_e2e.png")
+    snow = uri("wiring_snowflake.png")
+    arch = uri("arch_flow.png")
+    metrics = uri("wiring_metrics.png")
+    ask = uri("wiring_ask.png")
+    gap = uri("gap_split.png")
+    ch = uri("chart_channel.png")
+    st = uri("chart_stock.png")
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>VC Retail Analytics</title>
+<style>
+  @page {{ size: Letter landscape; margin: 0; }}
+  * {{ box-sizing: border-box; }}
+  html, body {{
+    margin: 0; padding: 0;
+    color: #1c1914;
+    font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
+    background: #f3efe6;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }}
+  .page {{
+    width: 11in; height: 8.5in;
+    page-break-after: always;
+    position: relative;
+    overflow: hidden;
+    background:
+      radial-gradient(900px 420px at 8% -10%, #fff8ea, transparent),
+      linear-gradient(180deg, #f7f2e8, #f3efe6);
+  }}
+  .page:last-child {{ page-break-after: auto; }}
+  .page.dark {{
+    background: #1c1914;
+    color: #f4efe4;
+  }}
+  .page.hero {{
+    background: #1c1914;
+    color: #f4efe4;
+  }}
+  .hero-bg {{
+    position: absolute; inset: 0;
+    background:
+      linear-gradient(90deg, rgba(28,25,20,.94) 0%, rgba(28,25,20,.72) 42%, rgba(28,25,20,.28) 100%),
+      url('{hero}') center/cover no-repeat;
+  }}
+  .accent-bar {{
+    position: absolute; left: 42%; top: 0; bottom: 0; width: 4px; background: #8a6a3b;
+  }}
+  .pad {{ padding: 0.55in 0.65in 0.5in; position: relative; z-index: 1; height: 100%; }}
+  .eyebrow {{
+    text-transform: uppercase; letter-spacing: 0.14em; font-size: 11px;
+    color: #8a6a3b; font-weight: 600; margin: 0 0 10px;
+  }}
+  .hero .eyebrow, .dark .eyebrow {{ color: #c4a574; }}
+  h1 {{
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    font-weight: 500; font-size: 42px; line-height: 1.05; letter-spacing: -0.02em;
+    margin: 0 0 14px; max-width: 5.2in;
+  }}
+  h2 {{
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    font-weight: 500; font-size: 28px; letter-spacing: -0.02em; margin: 0 0 12px;
+  }}
+  h3 {{
+    font-family: "Iowan Old Style", Georgia, serif;
+    font-weight: 500; font-size: 16px; margin: 0 0 6px;
+  }}
+  .lede {{ font-size: 15px; line-height: 1.45; color: #6b6458; max-width: 5.4in; margin: 0 0 18px; }}
+  .hero .lede, .dark .lede {{ color: #c8c0b0; }}
+  .fine {{ font-size: 12px; color: #6b6458; }}
+  .hero .fine, .dark .fine {{ color: #8a8378; }}
+  a.cta {{
+    display: inline-block; background: #8a6a3b; color: #fffdf8 !important;
+    text-decoration: none; padding: 14px 22px; font-size: 15px; font-weight: 600;
+    border-radius: 2px; margin: 8px 0 10px;
+  }}
+  a.cta.dark-btn {{ background: #1c1914; }}
+  a.cta.light-btn {{ background: #fffdf8; color: #1c1914 !important; border: 1px solid #d9d0c0; }}
+  a.url {{
+    color: #8a6a3b; font-weight: 600; font-size: 14px;
+    text-decoration: underline; text-underline-offset: 3px;
+  }}
+  .hero a.url {{ color: #c4a574; }}
+  .chips {{ display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }}
+  .chip {{
+    border: 1px solid #8a6a3b; color: #8a6a3b; font-size: 10px; letter-spacing: 0.08em;
+    padding: 6px 10px; text-transform: uppercase;
+  }}
+  .hero .chip {{ border-color: #c4a574; color: #c4a574; }}
+  .grid3 {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 18px; }}
+  .grid2 {{ display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }}
+  .grid4 {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }}
+  .card {{
+    background: #fffdf8; border: 1px solid #d9d0c0; padding: 14px 16px;
+    border-top: 3px solid #8a6a3b;
+  }}
+  .card.dark {{ background: #1c1914; border-color: #1c1914; color: #f4efe4; }}
+  .card p {{ margin: 0; font-size: 12.5px; line-height: 1.4; color: #6b6458; }}
+  .card.dark p {{ color: #c8c0b0; }}
+  .card .num {{ color: #8a6a3b; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; }}
+  .title-row {{ display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }}
+  .title-row .bar {{ width: 4px; height: 28px; background: #8a6a3b; }}
+  img.full {{ width: 100%; height: auto; display: block; border: 1px solid #d9d0c0; }}
+  img.half {{ width: 100%; height: 4.6in; object-fit: contain; background: #fffdf8; border: 1px solid #d9d0c0; }}
+  .still-side {{
+    position: absolute; right: 0; top: 0; bottom: 0; width: 42%;
+    background: url('{still}') center/cover no-repeat;
+  }}
+  .still-side::after {{
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(90deg, #f3efe6, transparent 35%);
+  }}
+  .copy-left {{ max-width: 55%; }}
+  ol.steps {{ margin: 10px 0 0; padding-left: 1.1rem; color: #6b6458; font-size: 13px; line-height: 1.55; }}
+  ol.steps strong {{ color: #1c1914; }}
+  code {{ font-size: 0.92em; background: #fff; border: 1px solid #d9d0c0; padding: 1px 5px; }}
+  .foot {{
+    position: absolute; left: 0.65in; right: 0.65in; bottom: 0.28in;
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 10px; color: #6b6458; border-top: 1px solid #d9d0c0; padding-top: 6px;
+  }}
+  .dark .foot, .hero .foot {{ color: #8a8378; border-color: rgba(217,208,192,.25); }}
+  .foot a {{ color: #8a6a3b; font-weight: 600; }}
+  .row-api {{
+    display: grid; grid-template-columns: 2.6in 1fr; gap: 10px;
+    padding: 8px 12px; border: 1px solid #d9d0c0; margin-bottom: 6px;
+    background: #fffdf8; font-size: 12.5px;
+  }}
+  .row-api:nth-child(even) {{ background: #e8dfcf; }}
+  .row-api strong {{ font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; }}
+  .schema {{
+    display: grid; grid-template-columns: 1.5in 1fr; gap: 8px; align-items: center;
+    margin-bottom: 8px;
+  }}
+  .schema .tag {{
+    background: #1c1914; color: #f4efe4; text-align: center; padding: 10px 8px;
+    font-size: 12px; font-weight: 700; letter-spacing: 0.06em;
+  }}
+  .schema .tag.accent {{ background: #8a6a3b; }}
+  .schema p {{ margin: 0; font-size: 12.5px; color: #6b6458; }}
+  .cta-banner {{
+    background: #1c1914; color: #f4efe4; padding: 18px 20px; margin: 8px 0 14px;
+    display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  }}
+  .cta-banner a {{ color: #c4a574; font-size: 18px; font-weight: 700; }}
+  .split-dark {{ display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 10px; }}
+  .panel {{ padding: 16px 18px; min-height: 3.8in; }}
+  .panel.light {{ background: #fffdf8; border: 1px solid #d9d0c0; }}
+  .panel.ink {{ background: #1c1914; color: #f4efe4; }}
+  .panel ul {{ margin: 8px 0 0; padding-left: 1rem; font-size: 13px; line-height: 1.45; color: #6b6458; }}
+  .panel.ink ul {{ color: #c8c0b0; }}
+  .brand-strip {{
+    display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px;
+  }}
+  .brand-strip span {{
+    background: #fffdf8; border: 1px solid #d9d0c0; padding: 8px 12px; font-size: 12px;
+    font-family: Georgia, serif;
+  }}
+</style>
+</head>
+<body>
+
+<!-- 1 Cover -->
+<section class="page hero">
+  <div class="hero-bg"></div>
+  <div class="accent-bar"></div>
+  <div class="pad" style="display:flex;flex-direction:column;justify-content:center;max-width:5.6in;">
+    <p class="eyebrow">Visual Comfort–flavored · Independent prototype</p>
+    <h1>VC Retail Analytics</h1>
+    <p class="lede">Dealer sell-through, margin depth, seasonality, field grades, materials planning, and vendor scorecards — plus a governed assistant — on synthetic lighting-retail data.</p>
+    <a class="cta" href="{DEMO_URL}">Open live demo →</a>
+    <p><a class="url" href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a></p>
+    <p class="fine" style="margin-top:10px;">Login <strong style="color:#f4efe4">dlr-0001</strong> / <strong style="color:#f4efe4">vc-demo</strong></p>
+    <div class="chips">
+      <span class="chip">Synthetic data</span>
+      <span class="chip">Not production</span>
+      <span class="chip">Independent</span>
+    </div>
+    <p class="fine" style="margin-top:28px;">Paul Rendleman</p>
+  </div>
+</section>
+
+<!-- 2 Start / clickable -->
+<section class="page">
+  <div class="pad">
+    <p class="eyebrow">Start here</p>
+    <div class="title-row"><div class="bar"></div><h2>Click to open the live demo</h2></div>
+    <div class="cta-banner">
+      <div>
+        <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#c4a574;margin-bottom:6px;">Public demo URL</div>
+        <a href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a>
+      </div>
+      <a class="cta" href="{DEMO_URL}" style="margin:0;">Open demo →</a>
+    </div>
+    <div class="grid4">
+      <div class="card"><div class="num">01</div><h3>Open</h3><p>Click the banner or button above (works in Preview & Acrobat).</p></div>
+      <div class="card"><div class="num">02</div><h3>Sign in</h3><p><code>dlr-0001</code> / <code>vc-demo</code> · also dlr-0002, operator.</p></div>
+      <div class="card"><div class="num">03</div><h3>Confirm</h3><p>SYNTHETIC badge visible in the app header.</p></div>
+      <div class="card"><div class="num">04</div><h3>Walk</h3><p>Overview → Analytics → Assistant → Catalog.</p></div>
+    </div>
+    <p class="fine" style="margin-top:18px;">Inspired by Visual Comfort &amp; Co. public brand language (designer lighting, trade + consumer). Not commissioned client work.</p>
+  </div>
+  <div class="foot"><span>VC Retail Analytics · synthetic</span><a href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a><span>2 / 12</span></div>
+</section>
+
+<!-- 3 Opportunity -->
+<section class="page">
+  <div class="still-side"></div>
+  <div class="pad copy-left">
+    <p class="eyebrow">The opportunity</p>
+    <div class="title-row"><div class="bar"></div><h2>Designer lighting retail, grounded in data</h2></div>
+    <p class="lede">Public support is strong for FAQ and human escalation — but dealer margin, seasonality, rep grades, and vendor scorecards are missing from chat. This prototype closes that gap with governed warehouse metrics.</p>
+    <div class="brand-strip">
+      <span>Ceiling</span><span>Wall</span><span>Lamps</span><span>Outdoor</span><span>Fans</span><span>Alabaster</span><span>Cordless</span>
+    </div>
+    <div class="grid3" style="margin-top:22px; max-width:5.8in;">
+      <div class="card"><h3>Channels</h3><p>Consumer · Trade · Contract</p></div>
+      <div class="card"><h3>Tenancy</h3><p>Dealer scope from session — never the prompt</p></div>
+      <div class="card"><h3>Honesty</h3><p>Every number from a query</p></div>
+    </div>
+  </div>
+  <div class="foot"><span>VC Retail Analytics · synthetic</span><a href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a><span>3 / 12</span></div>
+</section>
+
+<!-- 4 Local wiring -->
+<section class="page">
+  <div class="pad">
+    <p class="eyebrow">Deep wiring · local</p>
+    <div class="title-row"><div class="bar"></div><h2>Browser → API → SQLite → public edge</h2></div>
+    <img class="full" src="{e2e}" alt="End-to-end wiring diagram" />
+  </div>
+  <div class="foot"><span>VC Retail Analytics · synthetic</span><a href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a><span>4 / 12</span></div>
+</section>
+
+<!-- 5 Medallion -->
+<section class="page">
+  <div class="pad">
+    <p class="eyebrow">Warehouse</p>
+    <div class="title-row"><div class="bar"></div><h2>Bronze → Silver → Gold</h2></div>
+    <img class="full" src="{arch}" alt="Medallion architecture" style="margin-bottom:14px;" />
+    <div class="grid3">
+      <div class="card"><h3>Bronze</h3><p>Immutable events keyed by event_id and (dealer, source, version).</p></div>
+      <div class="card"><h3>Validate</h3><p>Reject bad money/units/channels → quarantine.</p></div>
+      <div class="card"><h3>Silver / Gold</h3><p>Latest dealer×SKU facts; channel×region×family rolls.</p></div>
+    </div>
+  </div>
+  <div class="foot"><span>VC Retail Analytics · synthetic</span><a href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a><span>5 / 12</span></div>
+</section>
+
+<!-- 6 Snowflake -->
+<section class="page">
+  <div class="pad">
+    <p class="eyebrow">Deep wiring · Snowflake</p>
+    <div class="title-row"><div class="bar"></div><h2>Optional cloud path — same product contracts</h2></div>
+    <img class="full" src="{snow}" alt="Snowflake wiring" />
+  </div>
+  <div class="foot"><span>VC Retail Analytics · synthetic</span><a href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a><span>6 / 12</span></div>
+</section>
+
+<!-- 7 Snowflake detail -->
+<section class="page">
+  <div class="pad">
+    <p class="eyebrow">Snowflake detail</p>
+    <div class="title-row"><div class="bar"></div><h2>VC_RETAIL_DEMO layout &amp; row policy</h2></div>
+    <div class="grid2">
+      <div>
+        <div class="schema"><div class="tag">BRONZE</div><p>DEALERS, PRODUCTS, EVENTS (VARIANT), INGEST_STAGE</p></div>
+        <div class="schema"><div class="tag">SILVER</div><p>FACTS + QUARANTINE</p></div>
+        <div class="schema"><div class="tag">GOLD</div><p>Channel / family / region aggregates</p></div>
+        <div class="schema"><div class="tag accent">GOVERNANCE</div><p>USER_DEALERS + DEALER_SCOPE row-access policy</p></div>
+        <div class="schema"><div class="tag">SERVING</div><p>Secure views for the app + semantic view</p></div>
+      </div>
+      <div class="card dark">
+        <h3 style="color:#c4a574;">Ordered setup</h3>
+        <ol class="steps" style="color:#c8c0b0;">
+          <li><strong style="color:#f4efe4;">doctor</strong> — connection check</li>
+          <li><strong style="color:#f4efe4;">platform</strong> — create DB / schemas / WH</li>
+          <li><strong style="color:#f4efe4;">load</strong> — PUT JSONL → COPY VARIANT</li>
+          <li><strong style="color:#f4efe4;">transform</strong> — SILVER.FACTS</li>
+          <li><strong style="color:#f4efe4;">governance</strong> — RAP on SERVING views</li>
+          <li><strong style="color:#f4efe4;">semantic</strong> — VC_RETAIL_SEMANTICS</li>
+          <li><strong style="color:#f4efe4;">validate · reconcile</strong> — evidence before “live” claims</li>
+        </ol>
+        <p style="margin-top:12px;font-size:12px;color:#c8c0b0;">Run app: <code style="color:#1c1914;background:#f4efe4;">--backend snowflake</code></p>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>VC Retail Analytics · synthetic</span><a href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a><span>7 / 12</span></div>
+</section>
+
+<!-- 8 Dual backend + metrics -->
+<section class="page">
+  <div class="pad">
+    <p class="eyebrow">Contracts</p>
+    <div class="title-row"><div class="bar"></div><h2>One UI · two backends · closed metrics</h2></div>
+    <div class="split-dark">
+      <div class="panel light">
+        <h3>Local</h3>
+        <ul>
+          <li><code>python3 -m app.server</code></li>
+          <li>SQLite <code>data/demo.db</code></li>
+          <li>Dealer WHERE from session cookie</li>
+          <li>No cloud credentials</li>
+        </ul>
+      </div>
+      <div class="panel ink">
+        <h3 style="color:#c4a574;">Snowflake</h3>
+        <ul>
+          <li><code>--backend snowflake</code></li>
+          <li>USE SCHEMA SERVING</li>
+          <li>Same metric SQL shapes</li>
+          <li>RAP enforces dealer scope in-warehouse</li>
+        </ul>
+      </div>
+    </div>
+    <img class="full" src="{metrics}" alt="Metric contracts" style="margin-top:12px;max-height:2.6in;object-fit:contain;background:#fffdf8;" />
+  </div>
+  <div class="foot"><span>VC Retail Analytics · synthetic</span><a href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a><span>8 / 12</span></div>
+</section>
+
+<!-- 9 API + ask -->
+<section class="page">
+  <div class="pad">
+    <p class="eyebrow">HTTP + assistant</p>
+    <div class="title-row"><div class="bar"></div><h2>API map &amp; ask router</h2></div>
+    <div class="grid2">
+      <div>
+        <div class="row-api"><strong>POST /api/login</strong><span>Session cookie · dealer bind</span></div>
+        <div class="row-api"><strong>GET /api/summary</strong><span>Overview KPIs</span></div>
+        <div class="row-api"><strong>GET /api/metric</strong><span>Closed METRICS vocabulary</span></div>
+        <div class="row-api"><strong>GET /api/analytics</strong><span>Margin / season / field / supply</span></div>
+        <div class="row-api"><strong>POST /api/ask</strong><span>today | proposed router</span></div>
+        <div class="row-api"><strong>POST /api/escalate</strong><span>Handoff JSON (demo)</span></div>
+        <div class="row-api"><strong>GET /api/products</strong><span>Catalog attribute search</span></div>
+      </div>
+      <div>
+        <img class="full" src="{ask}" alt="Ask routing" />
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>VC Retail Analytics · synthetic</span><a href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a><span>9 / 12</span></div>
+</section>
+
+<!-- 10 Gap + charts -->
+<section class="page">
+  <div class="pad">
+    <p class="eyebrow">Product story</p>
+    <div class="title-row"><div class="bar"></div><h2>Today vs Proposed · sample analytics</h2></div>
+    <div class="grid2">
+      <img class="half" src="{gap}" alt="Today vs Proposed" />
+      <div>
+        <img class="full" src="{ch}" alt="Channel chart" style="margin-bottom:8px;" />
+        <img class="full" src="{st}" alt="Stock risk chart" />
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>VC Retail Analytics · synthetic</span><a href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a><span>10 / 12</span></div>
+</section>
+
+<!-- 11 Demo script -->
+<section class="page">
+  <div class="pad">
+    <p class="eyebrow">Try it</p>
+    <div class="title-row"><div class="bar"></div><h2>Prompts that exercise the wiring</h2></div>
+    <div class="cta-banner">
+      <a href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a>
+      <a class="cta" href="{DEMO_URL}" style="margin:0;">Open live demo →</a>
+    </div>
+    <div class="split-dark">
+      <div class="panel light">
+        <h3>Today</h3>
+        <ul>
+          <li><em>custom order lead time</em> → FAQ + source</li>
+          <li><em>what is open box</em> → policy snippet</li>
+          <li><em>where is my order 12345</em> → escalate stub</li>
+        </ul>
+      </div>
+      <div class="panel ink">
+        <h3 style="color:#c4a574;">Proposed</h3>
+        <ul>
+          <li>Login <strong>operator</strong> / vc-demo (full Field &amp; Supply)</li>
+          <li>Hard-refresh after Access OTP</li>
+          <li><em>show margin percent</em> → insight + table + SQL</li>
+          <li><em>show vendor scorecard</em> → Prefer / Watch / Exit</li>
+          <li><em>show rep grades</em> → composite A–D</li>
+          <li><em>alabaster</em> → catalog hits</li>
+          <li><em>invent next quarter forecast</em> → refuse</li>
+        </ul>
+      </div>
+    </div>
+    <p class="fine" style="margin-top:16px;">Offline assistant is a FAQ + metric router — <strong>not an LLM</strong>. Only claim live Snowflake after reconcile evidence.</p>
+  </div>
+  <div class="foot"><span>VC Retail Analytics · synthetic</span><a href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a><span>11 / 12</span></div>
+</section>
+
+<!-- 12 Close -->
+<section class="page hero">
+  <div class="hero-bg"></div>
+  <div class="accent-bar"></div>
+  <div class="pad" style="display:flex;flex-direction:column;justify-content:center;max-width:5.8in;">
+    <p class="eyebrow">Independent · Synthetic · Governed</p>
+    <h1>Ground retail AI<br/>in metrics.</h1>
+    <p class="lede">Not Visual Comfort production data. Not commissioned client work. Built so the team can see how dealer analytics and a trustworthy assistant should be wired.</p>
+    <a class="cta" href="{DEMO_URL}">Open live demo →</a>
+    <p><a class="url" href="{DEMO_URL}">{DEMO_URL.rstrip('/')}</a></p>
+    <p class="fine" style="margin-top:8px;">dlr-0001 / vc-demo</p>
+    <p class="fine" style="margin-top:28px;color:#f4efe4;">Paul Rendleman</p>
+  </div>
+</section>
+
+</body>
+</html>
+"""
+
+
+def main() -> None:
+    OUT_HTML.parent.mkdir(parents=True, exist_ok=True)
+    html = build_html()
+    OUT_HTML.write_text(html, encoding="utf-8")
+    print("wrote", OUT_HTML)
+
+    with sync_playwright() as p:
+        try:
+            browser = p.chromium.launch(channel="chrome", headless=True)
+        except Exception:
+            browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+        page.goto(OUT_HTML.resolve().as_uri(), wait_until="networkidle")
+        page.pdf(
+            path=str(OUT_PDF),
+            landscape=True,
+            format="Letter",
+            print_background=True,
+            margin={"top": "0", "right": "0", "bottom": "0", "left": "0"},
+            prefer_css_page_size=True,
+        )
+        browser.close()
+    print("wrote", OUT_PDF)
+
+
+if __name__ == "__main__":
+    main()

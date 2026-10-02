@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+data/
+.env
+.env.*
+!.env.example
+connections.toml
+*.pem
+*.p8
+*.log
+*.token
+*.password
+vendor/
+scripts/bin/
+.DS_Store
+**/.DS_Store
