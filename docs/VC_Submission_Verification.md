@@ -40,12 +40,12 @@ Inspected via Zero Trust UI (account `c2b6521dc94949e90c39d6563b030802`). Policy
 
 | Address | Status | Basis |
 | --- | --- | --- |
-| `prendleman@aureaquantra.com` | Confirmed permitted | Visible under Include → Emails on policy detail screenshots |
-| `tyler@perceptiverecruiting.com` | Unable to verify (not confirmed on policy) | Automation did not persist; readback still owner-only |
-| `jegenberg@visualcomfort.com` | Unable to verify (not confirmed on policy) | Same |
-| `ragarwal@visualcomfort.com` | Unable to verify (not confirmed on policy) | Same; mailbox identity remains unverified guess |
+| `prendleman@aureaquantra.com` | Confirmed permitted | Preserved; visible on policy detail |
+| `tyler@perceptiverecruiting.com` | Confirmed permitted | Added via Zero Trust UI ~2026-10-02T21:27Z; "Policy saved successfully"; visible on fresh policy detail load |
+| `jegenberg@visualcomfort.com` | Confirmed permitted | Same save |
+| `ragarwal@visualcomfort.com` | Confirmed permitted (policy entry) | Same save; mailbox identity remains an unverified guess |
 
-API guest management remains blocked (`access.api.error.not_enabled`). Manual Configure path is in `docs/VC_Delivery_Checklist.md`.
+Policy membership is not evidence of any reviewer sign-in. API guest management remains blocked (`access.api.error.not_enabled`); UI route used.
 
 ## Local checks (earlier)
 

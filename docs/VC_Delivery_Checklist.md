@@ -4,25 +4,18 @@
 
 ## Access policy (vc.datasharkbi.com → Allowlist email)
 
+Policy **Allowlist email** (`730821e2-a838-49ec-9b19-6b7b7614fbbe`), single Include → Emails rule, Action Allow. Edited via Zero Trust UI (Playwright, owner session) at ~2026-10-02T21:27Z; toast "Policy saved successfully"; readback from a fresh load of the policy detail page.
+
 | Reviewer | Address | Policy status | Notes |
 | --- | --- | --- | --- |
-| Tyler Rose | `tyler@perceptiverecruiting.com` | **Unable to verify / not confirmed on policy** | Playwright reached policy detail; emails were not persisted. Readback still showed only owner email. |
-| Janice Egenberg | `jegenberg@visualcomfort.com` | **Unable to verify / not confirmed on policy** | Same |
-| Rahul Agarwal | `ragarwal@visualcomfort.com` | **Unable to verify / not confirmed on policy** | Same. Mailbox identity remains an **unverified guess** even after a future successful save. |
+| Tyler Rose | `tyler@perceptiverecruiting.com` | **Confirmed permitted** | Visible on policy detail after save |
+| Janice Egenberg | `jegenberg@visualcomfort.com` | **Confirmed permitted** | Visible on policy detail after save |
+| Rahul Agarwal | `ragarwal@visualcomfort.com` | **Confirmed permitted** (policy entry) | Mailbox identity remains an **unverified guess**; a saved entry means that exact address is permitted, not that the mailbox exists or is Rahul's |
+| Owner | `prendleman@aureaquantra.com` | Confirmed permitted | Preserved |
 
-**Confirmed on policy today:** `prendleman@aureaquantra.com` only (screenshot readback).
+No domain-wide allow; Access gate unchanged otherwise. Policy status is not evidence that any reviewer has signed in.
 
-### Exact manual step for Paul
-
-1. Cloudflare Zero Trust → **Access controls** → **Policies** → **Allowlist email** → **Configure**
-2. Under Include → Emails, add (preserve existing):
-   - `tyler@perceptiverecruiting.com`
-   - `jegenberg@visualcomfort.com`
-   - `ragarwal@visualcomfort.com`
-3. Save, reopen the policy detail, confirm all three appear next to the owner email.
-4. Do not allow `@visualcomfort.com` as a whole domain.
-
-API token path remains blocked (`access.api.error.not_enabled`).
+API token path remains blocked (`access.api.error.not_enabled`); UI is the operational route (`scripts/cf_access_add_guest_playwright.py` for future guests).
 
 ## Clarification-message fix
 
@@ -45,6 +38,6 @@ Earlier full walkthrough remains attributed to `b40c9f6` (~20:45Z). Targeted fix
 | Repo | https://github.com/prendleman/vc-retail-analytics |
 | Demo login | `operator` / `vc-demo` (after Access OTP) |
 
-**Remaining blocker before email:** add the three reviewer emails on the Allowlist email policy (manual Configure step above). Flag Rahul’s mailbox as unverified in any note to yourself.
+**Status:** technical package ready to send (PDF + demo URL + GitHub + demo login). Rahul's mailbox is still an unverified guess; if he does not receive the OTP, confirm his address and add the correct one.
 
 Nothing emailed from this task.
