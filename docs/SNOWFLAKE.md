@@ -103,12 +103,12 @@ Cortex (optional): set `SNOWFLAKE_HOST` + `SNOWFLAKE_PAT`, then `python3 -m scri
 
 ## Status — built and verified (2026-10-03)
 
-Run end-to-end against a Snowflake Enterprise account on AWS us-east-1 (account locator `UKC32298`, a "CoCo for Developers" account created for this demo; no RELIEF_DEMO objects touched). Evidence in `docs/evidence/`:
+Run end-to-end against a Snowflake Enterprise account on AWS us-east-1 (a "CoCo for Developers" account created for this demo; no RELIEF_DEMO objects touched). Evidence in `docs/evidence/`:
 
-- `snowflake_doctor.log` — account, role, 24 TPC-DS SF10TCL tables visible.
-- `snowflake_validate.log` — layer counts (facts 1.65M, monthly 653K, POs 2M, PO lines 8M, inventory 65.3M, forecast 150.75M, MRP 5.0M, BOM 1.6M), channel totals, backbone 2.63 TB / 56.9B rows, quarantine mix, four integrity checks all 0.
+- `snowflake_doctor.txt` — account, role, 24 TPC-DS SF10TCL tables visible.
+- `snowflake_validate.txt` — layer counts (facts 1.65M, monthly 653K, POs 2M, PO lines 8M, inventory 65.3M, forecast 150.75M, MRP 5.0M, BOM 1.6M), channel totals, backbone 2.63 TB / 56.9B rows, quarantine mix, four integrity checks all 0.
 - `reconcile.json` — the 396 event-sourced facts in Snowflake match the local SQLite seed exactly (`event_subset_vs_local_*` = 0.0).
 
 Calibration verified through the app on the reader role: rep attainment median 98–102% (P10–P90 83–121%), PO past-due 20% median, vendor OTIF 38–95% across Prefer/Watch/Exit tiers, forecast bias ±12% by family, MRP exceptions in all four codes, margin ≈ 22% of net, dealer-scoped session (`dlr-0001`) row-filtered by the RAP.
 
-What is still not demonstrated: the Cortex Analyst path (needs a PAT-scoped REST call; not run), Openflow ingestion (the loader is staged Python), and a second Snowflake principal for dual-user RAP isolation (only `PRENDLEMANAQ` exists; a dealer-mapped reader user would be the next step).
+What is still not demonstrated: the Cortex Analyst path (needs a PAT-scoped REST call; not run), Openflow ingestion (the loader is staged Python), and a second Snowflake principal for dual-user RAP isolation (only the owner user exists; a dealer-mapped reader user would be the next step).

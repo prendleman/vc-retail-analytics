@@ -1,0 +1,2 @@
+{'account': '<redacted>', 'user': '<redacted>', 'role': 'ACCOUNTADMIN', 'warehouse': 'COMPUTE_WH', 'region': 'AWS_US_EAST_1'}
+{'tpcds_sf10tcl_tables': 24, 'ok': True}

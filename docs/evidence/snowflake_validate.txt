@@ -1,0 +1,43 @@
+== 05_validation.sql
+  [1] USE DATABASE VC_RETAIL_DEMO;
+       {'status': 'Statement executed successfully.'}
+  [2] USE WAREHOUSE AQ_VC_RETAIL_WH;
+       {'status': 'Statement executed successfully.'}
+  [3] SELECT 'silver_facts' AS k, COUNT(*) AS n FROM SILVER.FACTS
+       {'K': 'silver_facts', 'N': 1645231}
+       {'K': 'silver_monthly', 'N': 652909}
+       {'K': 'gold_channel_family', 'N': 941}
+       {'K': 'gold_channel_family_all', 'N': 26250}
+       {'K': 'dealers', 'N': 1500}
+       {'K': 'products', 'N': 402200}
+       {'K': 'salespeople', 'N': 620}
+       {'K': 'vendors', 'N': 72}
+       {'K': 'purchase_orders', 'N': 2000000}
+       {'K': 'po_lines', 'N': 7998097}
+       {'K': 'shipments', 'N': 1858199}
+       {'K': 'receipts', 'N': 6284795}
+       {'K': 'inventory_snapshots', 'N': 65325000}
+       {'K': 'demand_forecast', 'N': 150750000}
+       {'K': 'mrp_plan', 'N': 5025000}
+       {'K': 'bom', 'N': 1608774}
+       {'K': 'quarantine', 'N': 37409}
+  [4] SELECT CHANNEL, SUM(NET_SALES) AS NET_SALES FROM GOLD.CHANNEL_FAMILY_ALL GROUP BY CHANNEL 
+       {'CHANNEL': 'Trade', 'NET_SALES': Decimal('26271176118.470000')}
+       {'CHANNEL': 'Contract', 'NET_SALES': Decimal('14150143684.040000')}
+       {'CHANNEL': 'Consumer', 'NET_SALES': Decimal('7167489011.180000')}
+  [5] SELECT 'tpcds_sf10tcl_backbone' AS layer, ROUND(SUM(BYTES)/POWER(1024,4), 2) AS tb, SUM(RO
+       {'LAYER': 'tpcds_sf10tcl_backbone', 'TB': 2.63, 'ROW_CNT': 56851682343}
+       {'LAYER': 'vc_retail_demo_GOVERNANCE', 'TB': 0.0, 'ROW_CNT': 1}
+       {'LAYER': 'vc_retail_demo_SILVER', 'TB': 0.0002, 'ROW_CNT': 15509708}
+       {'LAYER': 'vc_retail_demo_BRONZE', 'TB': 0.0015, 'ROW_CNT': 308173527}
+       {'LAYER': 'vc_retail_demo_GOLD', 'TB': 0.0001, 'ROW_CNT': 6273422}
+  [6] SELECT REASON, COUNT(*) AS N FROM SILVER.QUARANTINE GROUP BY REASON ORDER BY N DESC;
+       {'REASON': 'missing_field', 'N': 37405}
+       {'REASON': 'unknown_channel', 'N': 2}
+       {'REASON': 'invalid_amount', 'N': 2}
+  [7] SELECT 'po_lines_without_po' AS chk, COUNT(*) AS n FROM BRONZE.PO_LINES pl LEFT JOIN BRONZ
+       {'CHK': 'po_lines_without_po', 'N': 0}
+       {'CHK': 'facts_unknown_dealer', 'N': 0}
+       {'CHK': 'facts_margin_gt_sales', 'N': 0}
+       {'CHK': 'dealers_without_active_rep', 'N': 0}
+validate completed.
