@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -45,9 +46,34 @@ CTYPES = {
 }
 
 
+BACKEND_COOKIE = "vc_backend"
+DATA_SCALE = {
+    "local": "SQLite: small synthetic seed (same schema as Snowflake SERVING)",
+    "snowflake": "Snowflake: 10 TB TPC-DS backbone (shared, 56.9B rows) + generated sales-org / procurement / inventory / MRP layer",
+}
+
+
+def snowflake_env_config():
+    """Hosted deployments pass the reader credential as environment (Fly secrets) instead of connections.toml.
+    Returns None when the env is not set, so local runs fall back to a named connection profile."""
+    env = os.environ
+    if not (env.get("SNOWFLAKE_ACCOUNT") and env.get("SNOWFLAKE_USER") and env.get("SNOWFLAKE_PAT")):
+        return None
+    return {
+        "account": env["SNOWFLAKE_ACCOUNT"],
+        "user": env["SNOWFLAKE_USER"],
+        "authenticator": "PROGRAMMATIC_ACCESS_TOKEN",
+        "token": env["SNOWFLAKE_PAT"],
+        "role": env.get("SNOWFLAKE_ROLE", "AQ_VC_READER"),
+        "warehouse": env.get("SNOWFLAKE_WAREHOUSE", "AQ_VC_RETAIL_WH"),
+        "database": "VC_RETAIL_DEMO",
+        "schema": "SERVING",
+    }
+
+
 class Store:
-    """Local SQLite by default; Snowflake backend keeps one authenticated connection (externalbrowser/key-pair
-    happen once) and serves heavy metrics from Gold-backed SERVING views via the 'snowflake' SQL dialect."""
+    """Local SQLite by default; Snowflake backend keeps one authenticated connection (opened lazily on first use)
+    and serves heavy metrics from Gold-backed SERVING views via the 'snowflake' SQL dialect."""
 
     def __init__(self, path, backend="local", connection="aq_vc_reader"):
         self.path = path
@@ -62,10 +88,13 @@ class Store:
 
         with self._lock:
             if self._sf is None or self._sf.is_closed():
+                kwargs = snowflake_env_config() or {"connection_name": self.connection}
                 self._sf = snowflake.connector.connect(
-                    connection_name=self.connection,
                     session_parameters={"QUERY_TAG": "vc-retail-demo-app", "STATEMENT_TIMEOUT_IN_SECONDS": 60},
                     client_session_keep_alive=True,
+                    login_timeout=20,
+                    network_timeout=60,
+                    **kwargs,
                 )
                 self._sf.cursor().execute("USE DATABASE VC_RETAIL_DEMO")
                 self._sf.cursor().execute("USE SCHEMA SERVING")
@@ -130,6 +159,25 @@ class Handler(BaseHTTPRequestHandler):
     def session(self):
         return demo_auth.parse_cookie(self.headers.get("Cookie"))
 
+    # ---- backend selection (per browser session; a preference cookie, not a security boundary) ----
+    def backend_pref(self):
+        for part in (self.headers.get("Cookie") or "").split(";"):
+            k, _, v = part.strip().partition("=")
+            if k == BACKEND_COOKIE and v in ("local", "snowflake"):
+                return v
+        return None
+
+    def store(self):
+        stores = getattr(self.server, "stores", None) or {}
+        pref = self.backend_pref()
+        if pref and stores.get(pref):
+            return stores[pref]
+        return self.server.store
+
+    def backends_available(self):
+        stores = getattr(self.server, "stores", None) or {}
+        return [b for b in ("local", "snowflake") if stores.get(b)] or [self.server.store.backend]
+
     def same_origin_ok(self):
         origin = self.headers.get("Origin")
         if not origin:
@@ -150,7 +198,7 @@ class Handler(BaseHTTPRequestHandler):
             dealer = self.server.dealer
         else:
             dealer = requested
-        if dealer and not self.server.store.rows("SELECT dealer_id FROM dealers WHERE dealer_id=?", [dealer]):
+        if dealer and not self.store().rows("SELECT dealer_id FROM dealers WHERE dealer_id=?", [dealer]):
             raise ValueError("Unknown or inaccessible dealer")
         return dealer
 
@@ -158,7 +206,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             u = urlparse(self.path)
             q = parse_qs(u.query)
-            s = self.server.store
+            s = self.store()
             if u.path.startswith("/api/"):
                 if u.path == "/api/session":
                     sess = self.session()
@@ -177,14 +225,11 @@ class Handler(BaseHTTPRequestHandler):
                         {
                             "ok": True,
                             "backend": s.backend,
+                            "backends_available": self.backends_available(),
                             "scope": scope,
                             "synthetic": True,
                             "label": "VC Retail Analytics — synthetic demo",
-                            "data_scale": (
-                                "Snowflake: 10 TB TPC-DS backbone (shared) + generated sales-org / procurement / inventory / MRP layer"
-                                if s.backend == "snowflake"
-                                else "SQLite: small synthetic seed (same schema as Snowflake SERVING)"
-                            ),
+                            "data_scale": DATA_SCALE[s.backend],
                         }
                     )
                 dealer = self.scope(q)
@@ -358,7 +403,7 @@ class Handler(BaseHTTPRequestHandler):
             if size > 8192:
                 raise ValueError("Request too large")
             body = json.loads(self.rfile.read(size) or b"{}")
-            s = self.server.store
+            s = self.store()
             path = urlparse(self.path).path
             if path == "/api/login":
                 sess = demo_auth.authenticate(body.get("username"), body.get("password"))
@@ -367,6 +412,26 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send({"ok": True, "session": sess}, extra_headers={"Set-Cookie": demo_auth.issue_cookie(sess)})
             if path == "/api/logout":
                 return self.send({"ok": True}, extra_headers={"Set-Cookie": demo_auth.clear_cookie()})
+            if path == "/api/backend":
+                if not self.session() and not self.server.dealer:
+                    raise PermissionError("Login required")
+                want = (body.get("backend") or "").lower()
+                if want not in self.backends_available():
+                    return self.send({"error": f"Backend '{want}' is not available on this host", "backends_available": self.backends_available()}, 409)
+                target = (getattr(self.server, "stores", None) or {}).get(want) or self.server.store
+                try:
+                    # Prove the backend answers before switching the session (Snowflake warehouse may need to resume).
+                    start = time.perf_counter()
+                    target.rows("SELECT dealer_id FROM dealers LIMIT 1")
+                    warm_ms = round((time.perf_counter() - start) * 1000, 1)
+                except Exception as e:  # noqa: BLE001 - surfaced to the UI, logged server-side
+                    print("backend switch failed:", type(e).__name__, str(e)[:200], flush=True)
+                    return self.send({"error": f"{want} backend did not respond; staying on {s.backend}", "backend": s.backend}, 503)
+                cookie = f"{BACKEND_COOKIE}={want}; Path=/; Max-Age=43200; SameSite=Lax; HttpOnly"
+                return self.send(
+                    {"ok": True, "backend": want, "data_scale": DATA_SCALE[want], "warm_ms": warm_ms},
+                    extra_headers={"Set-Cookie": cookie},
+                )
 
             dealer = self.scope({"dealer": [body.get("dealer", "")]})
             if path == "/api/ask":
@@ -513,18 +578,27 @@ def main():
     p.add_argument("--host", default=__import__("os").environ.get("HOST", "127.0.0.1"))
     p.add_argument("--dealer")
     p.add_argument("--db", type=Path, default=DB)
-    p.add_argument("--backend", choices=["local", "snowflake"], default="local")
-    p.add_argument("--connection", default="aq_vc_reader")
+    p.add_argument("--backend", choices=["local", "snowflake"], default="local", help="Default backend for new sessions")
+    p.add_argument("--connection", default="aq_vc_reader", help="connections.toml profile for Snowflake (ignored when SNOWFLAKE_* env is set)")
+    p.add_argument(
+        "--enable-snowflake",
+        action="store_true",
+        help="Offer Snowflake as a per-session toggle alongside SQLite (implied by --backend snowflake or SNOWFLAKE_PAT in env)",
+    )
     a = p.parse_args()
     if not a.db.exists():
         print("Seeding synthetic VC retail dealers + catalog...", flush=True)
         print(seed(a.db), flush=True)
     server = ThreadingHTTPServer((a.host, a.port), Handler)
     server.dealer = a.dealer
-    server.store = Store(a.db, a.backend, a.connection)
+    snowflake_on = a.enable_snowflake or a.backend == "snowflake" or snowflake_env_config() is not None
+    server.stores = {"local": Store(a.db, "local", a.connection)}
+    if snowflake_on:
+        server.stores["snowflake"] = Store(a.db, "snowflake", a.connection)
+    server.store = server.stores[a.backend] if a.backend in server.stores else server.stores["local"]
     print(
-        f"VC Retail Analytics | http://{a.host}:{a.port} | {a.backend} | "
-        + (a.dealer or "session/operator"),
+        f"VC Retail Analytics | http://{a.host}:{a.port} | default={server.store.backend} "
+        f"available={sorted(server.stores)} | " + (a.dealer or "session/operator"),
         flush=True,
     )
     server.serve_forever()

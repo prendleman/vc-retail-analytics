@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>App · VC Retail Analytics</title>
-  <link rel="stylesheet" href="/style.css?v=20261003a" />
+  <link rel="stylesheet" href="/style.css?v=20261003b" />
 </head>
 <body class="app">
   <header class="top">
@@ -14,6 +14,11 @@
       <span id="backend" class="badge muted"></span>
     </div>
     <div class="right">
+      <span id="backend-switch" class="switch" hidden title="Same governed SQL, two data scales">
+        <span class="fine">Data</span>
+        <button type="button" data-backend="local">SQLite</button>
+        <button type="button" data-backend="snowflake">Snowflake · 10 TB</button>
+      </span>
       <span id="who"></span>
       <button id="logout" type="button">Log out</button>
     </div>
@@ -102,6 +107,6 @@
       <pre id="catalog-out" class="table"></pre>
     </section>
   </main>
-  <script src="/app.js?v=20261003a"></script>
+  <script src="/app.js?v=20261003b"></script>
 </body>
 </html>

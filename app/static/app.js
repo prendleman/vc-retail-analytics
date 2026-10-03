@@ -306,6 +306,45 @@ function renderAnalyticsSection() {
   document.getElementById('analytics-panels').innerHTML = head + insights + `<div class="panels-rich">${panels}</div>`;
 }
 
+let currentBackend = 'local';
+
+function renderBackend(health) {
+  currentBackend = health.backend;
+  const badge = document.getElementById('backend');
+  badge.textContent = health.backend.toUpperCase();
+  badge.title = health.data_scale || '';
+  const sw = document.getElementById('backend-switch');
+  const avail = health.backends_available || [health.backend];
+  sw.hidden = avail.length < 2;
+  sw.querySelectorAll('button').forEach(b => {
+    b.classList.toggle('active', b.dataset.backend === health.backend);
+    b.hidden = !avail.includes(b.dataset.backend);
+  });
+}
+
+async function switchBackend(target) {
+  const sw = document.getElementById('backend-switch');
+  const buttons = sw.querySelectorAll('button');
+  buttons.forEach(b => { b.disabled = true; });
+  const badge = document.getElementById('backend');
+  const prev = badge.textContent;
+  badge.textContent = target === 'snowflake' ? 'CONNECTING…' : 'SWITCHING…';
+  try {
+    const res = await api('/api/backend', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ backend: target }) });
+    analyticsCache = null;
+    await loadOverview();
+    const tab = document.querySelector('nav button.active')?.dataset.tab;
+    if (tab === 'analytics') await loadAnalytics();
+    if (tab === 'catalog') await loadCatalog();
+    if (res.warm_ms != null) badge.title = `${res.data_scale} — warm-up ${Math.round(res.warm_ms)} ms`;
+  } catch (err) {
+    badge.textContent = prev;
+    document.getElementById('summary').insertAdjacentHTML('beforebegin', `<p class="err">${esc(err.message)}</p>`);
+  } finally {
+    buttons.forEach(b => { b.disabled = false; });
+  }
+}
+
 async function loadOverview() {
   const [health, summary, portfolio, analytics] = await Promise.all([
     api('/api/health'),
@@ -314,7 +353,7 @@ async function loadOverview() {
     api('/api/analytics').catch(() => null),
   ]);
   if (analytics) analyticsCache = analytics;
-  document.getElementById('backend').textContent = health.backend.toUpperCase();
+  renderBackend(health);
   const marginPct = analytics?.summary?.margin_pct;
   document.getElementById('summary').innerHTML = [
     ['Dealers', summary.dealers],
@@ -336,7 +375,9 @@ async function loadOverview() {
 }
 
 async function loadAnalytics() {
-  document.getElementById('analytics-panels').innerHTML = '<p class="fine">Loading governed metrics…</p>';
+  document.getElementById('analytics-panels').innerHTML = currentBackend === 'snowflake'
+    ? '<p class="fine">Running ~40 governed metrics on Snowflake (XSMALL warehouse, ≈10 s; longer if it was suspended)…</p>'
+    : '<p class="fine">Loading governed metrics…</p>';
   if (!analyticsCache) analyticsCache = await api('/api/analytics');
   else {
     // refresh in background for freshness
@@ -519,6 +560,9 @@ async function boot() {
   document.getElementById('ask-proposed').onclick = () => ask('proposed');
   document.getElementById('escalate').onclick = escalate;
   document.getElementById('catalog-q').addEventListener('change', loadCatalog);
+  document.querySelectorAll('#backend-switch button').forEach(b => {
+    b.addEventListener('click', () => { if (!b.classList.contains('active')) switchBackend(b.dataset.backend); });
+  });
   document.getElementById('logout').onclick = async () => {
     await api('/api/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
     location.href = '/';

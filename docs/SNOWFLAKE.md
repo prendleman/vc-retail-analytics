@@ -94,8 +94,15 @@ INSERT INTO VC_RETAIL_DEMO.GOVERNANCE.USER_DEALERS VALUES ('<reader_user>', '*')
 Grant `AQ_VC_READER` to the reader principal and insert `CURRENT_USER()` → `DLR-0001` (or `*`) into `GOVERNANCE.USER_DEALERS`. Dealer-keyed views (facts, monthly, dealers, quarantine, gold channel/family, rep assignments) are row-filtered. Corporate supply-chain views (POs, inventory, MRP, BOM, vendors) are not dealer-keyed — any reader with the role sees them.
 
 ```sh
-python3 -m app.server --backend snowflake --connection aq_vc_reader
+python3 -m app.server --backend snowflake --connection aq_vc_reader       # Snowflake only
+python3 -m app.server --enable-snowflake --connection aq_vc_reader        # SQLite default + header toggle
 ```
+
+### Backend toggle (hosted demo)
+
+With both backends open the header shows **SQLite | Snowflake · 10 TB**. The choice is per browser session (HttpOnly `vc_backend` cookie, 12 h), requires a demo login, and runs the same governed SQL either way — only the `Store` behind it changes. `POST /api/backend` proves the target answers (`SELECT … FROM dealers LIMIT 1`, which also resumes the warehouse) before it sets the cookie; it returns 409 if that backend is not configured on the host and 503 if it did not respond, leaving the session where it was. A forged cookie naming an unavailable backend is ignored. `/api/health` reports `backend`, `backends_available` and a `data_scale` sentence the UI shows under the badge.
+
+On a host, credentials come from the environment instead of `connections.toml`: `SNOWFLAKE_ACCOUNT`, `SNOWFLAKE_USER`, `SNOWFLAKE_PAT` (+ optional `SNOWFLAKE_ROLE`, `SNOWFLAKE_WAREHOUSE`). The hosted demo uses a dedicated `TYPE = SERVICE` user that holds only `AQ_VC_READER`, a PAT restricted to that role, and a `'*'` row in `GOVERNANCE.USER_DEALERS`. Setup steps are in `docs/HOSTING.md`. Dealer scoping for `dlr-0001`/`dlr-0002` sessions is still applied by the app's SQL on both backends; the RAP is defense-in-depth on the Snowflake principal.
 
 On Snowflake the app keeps one authenticated connection, runs `/api/analytics` with a 6-way fan-out, and uses the `snowflake` SQL dialect: `inventory_trend`, `dc_inventory_health`, `forecast_accuracy`, `mrp_exceptions`, `vendor_scorecard` read Gold-backed `SERVING.GOLD_*` views (see `app/supply_chain.py: SNOWFLAKE_OVERRIDES`). Everything else runs the same governed SQL as SQLite against same-named SERVING views.
 
@@ -111,4 +118,6 @@ Run end-to-end against a Snowflake Enterprise account on AWS us-east-1 (a "CoCo 
 
 Calibration verified through the app on the reader role: rep attainment median 98–102% (P10–P90 83–121%), PO past-due 20% median, vendor OTIF 38–95% across Prefer/Watch/Exit tiers, forecast bias ±12% by family, MRP exceptions in all four codes, margin ≈ 22% of net, dealer-scoped session (`dlr-0001`) row-filtered by the RAP.
 
-What is still not demonstrated: the Cortex Analyst path (needs a PAT-scoped REST call; not run), Openflow ingestion (the loader is staged Python), and a second Snowflake principal for dual-user RAP isolation (only the owner user exists; a dealer-mapped reader user would be the next step).
+Hosted toggle verified the same day on the Fly deployment: `/api/health` lists both backends; switching an operator session to Snowflake warmed in 4.3 s (XSMALL resume), `/api/summary` answered in 1.6 s with 1,645,231 SKUs / 1,500 dealers / $1.64 B net, the full `/api/analytics` overview in 4.4 s, and switching back restored the 396-SKU SQLite seed. The hosted principal is a second Snowflake user (`VC_FLY_SVC`, service type, reader role only): before its `USER_DEALERS` row existed it saw 0 dealers through the RAP, after the `'*'` row all 1,500 — the policy filters by principal as designed. The dealer-partitioned case (one principal mapped to a single `DLR-xxxx`) has not been run on a separate user yet.
+
+What is still not demonstrated: the Cortex Analyst path (needs a PAT-scoped REST call; not run), Openflow ingestion (the loader is staged Python), and dual-user RAP isolation with a dealer-mapped (not `'*'`) second principal.

@@ -80,6 +80,29 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(resp.status, 403)
         self.assertIn("denied", body["error"].lower())
 
+    def test_backend_toggle(self):
+        # Unauthenticated switch is refused.
+        st, body, _ = self._json("POST", "/api/backend", {"backend": "local"})
+        self.assertEqual(st, 403)
+        status, login, cookie = self._json("POST", "/api/login", {"username": "operator", "password": "vc-demo"})
+        cookie_hdr = cookie.split(";")[0]
+        st, health, _ = self._json("GET", "/api/health", headers={"Cookie": cookie_hdr})
+        self.assertEqual(health["backend"], "local")
+        self.assertIn("local", health["backends_available"])
+        # Snowflake is not configured in the test server -> 409, and the session stays on local.
+        st, body, set_cookie = self._json("POST", "/api/backend", {"backend": "snowflake"}, headers={"Cookie": cookie_hdr})
+        self.assertEqual(st, 409)
+        self.assertIsNone(set_cookie)
+        # Switching to an available backend sets the preference cookie and health reflects it.
+        st, body, set_cookie = self._json("POST", "/api/backend", {"backend": "local"}, headers={"Cookie": cookie_hdr})
+        self.assertEqual(st, 200)
+        self.assertIn("vc_backend=local", set_cookie)
+        st, health, _ = self._json("GET", "/api/health", headers={"Cookie": cookie_hdr + "; vc_backend=local"})
+        self.assertEqual(health["backend"], "local")
+        # A forged preference for an unavailable backend is ignored, not honoured.
+        st, health, _ = self._json("GET", "/api/health", headers={"Cookie": cookie_hdr + "; vc_backend=snowflake"})
+        self.assertEqual(health["backend"], "local")
+
 
 if __name__ == "__main__":
     unittest.main()

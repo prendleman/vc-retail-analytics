@@ -9,6 +9,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certifi
     https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
   && chmod +x /usr/local/bin/cloudflared
 
+# Snowflake connector so the hosted app can offer the Snowflake backend toggle (credential via Fly secrets).
+COPY requirements-cloud.txt ./requirements-cloud.txt
+RUN pip install --no-cache-dir -r requirements-cloud.txt
+
 COPY app ./app
 COPY scripts/start_hosted.sh ./scripts/start_hosted.sh
 COPY sql ./sql
