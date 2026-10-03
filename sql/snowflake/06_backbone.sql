@@ -118,21 +118,42 @@ SELECT d.DEALER_ID, d.STORE_SK, dc.DC_ID,
 FROM d JOIN dc ON dc.REGION = d.REGION AND dc.RN = MOD(COALESCE(d.STORE_SK, 0), dc.N);
 
 -- Unified sales view over the three TPC-DS channels, re-skinned and windowed (read in 08; not materialized here).
+-- Re-skin rules (TPC-DS is a general-merchandise retailer; a lighting dealer sells far fewer, pricier units):
+--   * keep 1 ticket/order in {{SAMPLE_MOD}} (hash on a value independent of the dealer residue so every dealer keeps sales);
+--   * QTY 1..100 -> 1..4 (divide by {{QTY_DIV}});
+--   * money is NOT taken from the TPC-DS dollar columns. The row's own sales/list ratio is kept as a discount
+--     (clamped 0.55..1.00) and applied to the re-skinned LIST_PRICE_CENTS downstream. NET_PAID is kept only
+--     so NULL-field quarantine mirrors the source.
 CREATE OR REPLACE VIEW BRONZE.BACKBONE_SALES AS
 SELECT 'Trade' AS CHANNEL, 'DLR-' || LPAD(ss.SS_STORE_SK, 4, '0') AS DEALER_ID, ss.SS_ITEM_SK AS ITEM_SK,
-       c.MONTH, c.CAL_DATE, ss.SS_QUANTITY AS QTY, ss.SS_NET_PAID AS NET_PAID, ss.SS_TICKET_NUMBER AS DOC_NO
+       c.MONTH, c.CAL_DATE,
+       CASE WHEN ss.SS_QUANTITY IS NULL THEN NULL ELSE GREATEST(1, ROUND(ss.SS_QUANTITY / {{QTY_DIV}})) END AS QTY,
+       ss.SS_NET_PAID AS NET_PAID,
+       LEAST(1.0, GREATEST(0.55, COALESCE(ss.SS_SALES_PRICE / NULLIF(ss.SS_LIST_PRICE, 0), 0.85))) AS DISC_RATIO,
+       ss.SS_TICKET_NUMBER AS DOC_NO
 FROM SNOWFLAKE_SAMPLE_DATA.TPCDS_SF10TCL.STORE_SALES ss
 JOIN BRONZE.CALENDAR c ON c.DATE_SK = ss.SS_SOLD_DATE_SK
+WHERE MOD(ss.SS_TICKET_NUMBER, {{SAMPLE_MOD}}) = 0
 UNION ALL
 SELECT 'Contract', 'DLR-' || LPAD(MOD(cs.CS_ORDER_NUMBER, 1500) + 1, 4, '0'), cs.CS_ITEM_SK,
-       c.MONTH, c.CAL_DATE, cs.CS_QUANTITY, cs.CS_NET_PAID, cs.CS_ORDER_NUMBER
+       c.MONTH, c.CAL_DATE,
+       CASE WHEN cs.CS_QUANTITY IS NULL THEN NULL ELSE GREATEST(1, ROUND(cs.CS_QUANTITY / {{QTY_DIV}})) END,
+       cs.CS_NET_PAID,
+       LEAST(1.0, GREATEST(0.55, COALESCE(cs.CS_SALES_PRICE / NULLIF(cs.CS_LIST_PRICE, 0), 0.85))),
+       cs.CS_ORDER_NUMBER
 FROM SNOWFLAKE_SAMPLE_DATA.TPCDS_SF10TCL.CATALOG_SALES cs
 JOIN BRONZE.CALENDAR c ON c.DATE_SK = cs.CS_SOLD_DATE_SK
+WHERE MOD(FLOOR(cs.CS_ORDER_NUMBER / 1500), {{SAMPLE_MOD}}) = 0
 UNION ALL
 SELECT 'Consumer', 'DLR-' || LPAD(MOD(ws.WS_ORDER_NUMBER, 1500) + 1, 4, '0'), ws.WS_ITEM_SK,
-       c.MONTH, c.CAL_DATE, ws.WS_QUANTITY, ws.WS_NET_PAID, ws.WS_ORDER_NUMBER
+       c.MONTH, c.CAL_DATE,
+       CASE WHEN ws.WS_QUANTITY IS NULL THEN NULL ELSE GREATEST(1, ROUND(ws.WS_QUANTITY / {{QTY_DIV}})) END,
+       ws.WS_NET_PAID,
+       LEAST(1.0, GREATEST(0.55, COALESCE(ws.WS_SALES_PRICE / NULLIF(ws.WS_LIST_PRICE, 0), 0.85))),
+       ws.WS_ORDER_NUMBER
 FROM SNOWFLAKE_SAMPLE_DATA.TPCDS_SF10TCL.WEB_SALES ws
-JOIN BRONZE.CALENDAR c ON c.DATE_SK = ws.WS_SOLD_DATE_SK;
+JOIN BRONZE.CALENDAR c ON c.DATE_SK = ws.WS_SOLD_DATE_SK
+WHERE MOD(FLOOR(ws.WS_ORDER_NUMBER / 1500), {{SAMPLE_MOD}}) = 0;
 
 -- Weekly inventory snapshots (TPC-DS inventory is weekly) for the last {{INV_WEEKS}} weeks: DC x SKU x week.
 CREATE OR REPLACE TABLE BRONZE.INVENTORY_BACKBONE CLUSTER BY (SNAPSHOT_WEEK, DC_ID) AS
@@ -142,7 +163,7 @@ WITH weeks AS (
   ORDER BY ISO_DATE DESC LIMIT {{INV_WEEKS}}
 )
 SELECT w.ISO_DATE AS SNAPSHOT_WEEK, dc.DC_ID, 'SKU-' || LPAD(i.INV_ITEM_SK, 6, '0') AS SKU_ID,
-       COALESCE(i.INV_QUANTITY_ON_HAND, 0) AS ON_HAND
+       ROUND(COALESCE(i.INV_QUANTITY_ON_HAND, 0) / {{INV_DIV}})::NUMBER AS ON_HAND  -- 0..1000 -> 0..10 per DC x SKU, matched to re-skinned demand
 FROM SNOWFLAKE_SAMPLE_DATA.TPCDS_SF10TCL.INVENTORY i
 JOIN weeks w ON w.DATE_SK = i.INV_DATE_SK
 JOIN BRONZE.DISTRIBUTION_CENTERS dc ON dc.WAREHOUSE_SK = i.INV_WAREHOUSE_SK;

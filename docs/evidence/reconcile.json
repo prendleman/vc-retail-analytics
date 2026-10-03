@@ -1,0 +1,32 @@
+{
+  "synthetic": true,
+  "as_of": "2026-09-30",
+  "snowflake": {
+    "silver_facts": 1645231.0,
+    "units": 3870273.0,
+    "net_sales": 1638513337.74,
+    "dealers": 1500.0,
+    "quarantined": 37409.0,
+    "purchase_orders": 2000000.0,
+    "inventory_snapshots": 65325000.0,
+    "mrp_plan": 5025000.0
+  },
+  "snowflake_event_subset": {
+    "silver_facts": 396.0,
+    "units": 8112.0,
+    "net_sales": 16209441.92
+  },
+  "local": {
+    "silver_facts": 396.0,
+    "units": 8112.0,
+    "net_sales": 16209441.92,
+    "dealers": 50.0,
+    "quarantined": 4.0,
+    "purchase_orders": 150.0,
+    "inventory_snapshots": 10400.0,
+    "mrp_plan": 800.0
+  },
+  "event_subset_vs_local_facts": 0.0,
+  "event_subset_vs_local_sales": 0.0,
+  "note": "Snowflake totals include the TPC-DS backbone (scoped dealers x SKU) and the generated layer; the event subset should match local exactly."
+}

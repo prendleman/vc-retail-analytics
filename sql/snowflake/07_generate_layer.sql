@@ -115,22 +115,27 @@ WITH v AS (SELECT vc.VENDOR_ID, vc.PROMISED_LEAD_DAYS, ve.COUNTRY, ROW_NUMBER() 
        FROM g JOIN v ON v.RN = MOD(g.I, v.N) JOIN dc ON dc.RN = MOD(g.I * 13, dc.N)
      )
 SELECT PO_ID, VENDOR_ID, DC_ID, ORDER_DATE, PROMISED_DATE,
+       -- past-promised POs are mostly received/closed; ~5% linger open/in-transit (past due), ~4% cancelled
        CASE WHEN PROMISED_DATE > '{{AS_OF}}'::DATE THEN (CASE WHEN R < 0.66 THEN 'open' ELSE 'in_transit' END)
-            WHEN R < 0.45 THEN 'received' WHEN R < 0.80 THEN 'closed' WHEN R < 0.88 THEN 'open'
+            WHEN R < 0.45 THEN 'received' WHEN R < 0.91 THEN 'closed' WHEN R < 0.935 THEN 'open'
             WHEN R < 0.96 THEN 'in_transit' ELSE 'cancelled' END AS STATUS,
        COUNTRY, LEAD_DAYS
 FROM base;
 
 CREATE OR REPLACE TABLE BRONZE.PO_LINES CLUSTER BY (PO_ID) AS
 WITH lines AS (SELECT SEQ4() AS L FROM TABLE(GENERATOR(ROWCOUNT => 6))),
-     po AS (SELECT PO_ID, VENDOR_ID, STATUS, PROMISED_DATE, ABS(HASH(PO_ID)) AS H, 2 + MOD(ABS(HASH(PO_ID || 'n')), 5) AS N_LINES FROM BRONZE.PURCHASE_ORDERS)
+     -- short-ship is decided per PO (2% for the most reliable vendor .. ~19% for the least; same reliability as shipments), not per line,
+     -- so multi-line POs can still count as in-full for OTIF.
+     po AS (SELECT PO_ID, VENDOR_ID, STATUS, PROMISED_DATE, ABS(HASH(PO_ID)) AS H, 2 + MOD(ABS(HASH(PO_ID || 'n')), 5) AS N_LINES,
+                   MOD(ABS(HASH(PO_ID || 'f')), 100) < (2 + ROUND((1.0 - (0.45 + MOD(ABS(HASH(VENDOR_ID)), 56) / 100.0)) * 30)) AS SHORT
+            FROM BRONZE.PURCHASE_ORDERS)
 SELECT po.PO_ID, l.L + 1 AS LINE_NO, pv.SKU_ID,
        ARRAY_CONSTRUCT(10,20,25,40,50,100)[MOD(po.H + l.L, 6)]::NUMBER AS QTY_ORDERED,
        ROUND(pv.COST_CENTS * UNIFORM(0.95::FLOAT, 1.08::FLOAT, RANDOM(61)))::NUMBER AS UNIT_COST_CENTS,
        CASE po.STATUS
-         WHEN 'received' THEN (CASE WHEN UNIFORM(0::FLOAT, 1::FLOAT, RANDOM(62)) < 0.82 THEN ARRAY_CONSTRUCT(10,20,25,40,50,100)[MOD(po.H + l.L, 6)]::NUMBER
+         WHEN 'received' THEN (CASE WHEN NOT po.SHORT OR l.L > 0 THEN ARRAY_CONSTRUCT(10,20,25,40,50,100)[MOD(po.H + l.L, 6)]::NUMBER
                                     ELSE ROUND(ARRAY_CONSTRUCT(10,20,25,40,50,100)[MOD(po.H + l.L, 6)]::NUMBER * UNIFORM(0.6::FLOAT, 0.98::FLOAT, RANDOM(63))) END)
-         WHEN 'closed'   THEN (CASE WHEN UNIFORM(0::FLOAT, 1::FLOAT, RANDOM(64)) < 0.82 THEN ARRAY_CONSTRUCT(10,20,25,40,50,100)[MOD(po.H + l.L, 6)]::NUMBER
+         WHEN 'closed'   THEN (CASE WHEN NOT po.SHORT OR l.L > 0 THEN ARRAY_CONSTRUCT(10,20,25,40,50,100)[MOD(po.H + l.L, 6)]::NUMBER
                                     ELSE ROUND(ARRAY_CONSTRUCT(10,20,25,40,50,100)[MOD(po.H + l.L, 6)]::NUMBER * UNIFORM(0.6::FLOAT, 0.98::FLOAT, RANDOM(65))) END)
          WHEN 'open'     THEN (CASE WHEN UNIFORM(0::FLOAT, 1::FLOAT, RANDOM(66)) < 0.7 THEN 0
                                     ELSE ROUND(ARRAY_CONSTRUCT(10,20,25,40,50,100)[MOD(po.H + l.L, 6)]::NUMBER * UNIFORM(0.2::FLOAT, 0.8::FLOAT, RANDOM(67))) END)
@@ -145,20 +150,26 @@ WITH val AS (SELECT PO_ID, SUM(QTY_ORDERED * UNIT_COST_CENTS) AS VALUE_CENTS, SU
      po AS (
        SELECT po.*, val.VALUE_CENTS, val.RCV,
               CASE WHEN po.COUNTRY IN ('US','CA','MX') THEN FALSE ELSE TRUE END AS OVERSEAS,
-              GREATEST(3, ROUND(po.LEAD_DAYS * UNIFORM(0.75::FLOAT, 1.2::FLOAT, RANDOM(71))))::NUMBER AS TRANSIT
+              -- transit is a fraction of lead time (the rest is vendor make/pick time)
+              GREATEST(3, ROUND(po.LEAD_DAYS * UNIFORM(0.25::FLOAT, 0.6::FLOAT, RANDOM(71))))::NUMBER AS TRANSIT,
+              -- vendor on-time reliability 0.45..1.00, stable per vendor (wide enough to populate Prefer / Watch / Exit tiers)
+              0.45 + MOD(ABS(HASH(po.VENDOR_ID)), 56) / 100.0 AS RELIABILITY
        FROM BRONZE.PURCHASE_ORDERS po JOIN val ON val.PO_ID = po.PO_ID
        WHERE po.STATUS IN ('received','closed','in_transit') OR (po.STATUS = 'open' AND val.RCV > 0)
      ),
      s AS (
        SELECT po.*, DATEADD(day, GREATEST(1, LEAD_DAYS - TRANSIT), ORDER_DATE) AS SHIP_DATE,
               CASE WHEN OVERSEAS THEN ARRAY_CONSTRUCT('ocean','ocean','air')[MOD(ABS(HASH(PO_ID)),3)]::VARCHAR
-                   ELSE ARRAY_CONSTRUCT('truck','truck','rail')[MOD(ABS(HASH(PO_ID)),3)]::VARCHAR END AS MODE
+                   ELSE ARRAY_CONSTRUCT('truck','truck','rail')[MOD(ABS(HASH(PO_ID)),3)]::VARCHAR END AS MODE,
+              -- arrival vs promise: on time (0-4 days early) with probability RELIABILITY, else 1-14 days late (2-30 overseas)
+              CASE WHEN UNIFORM(0::FLOAT, 1::FLOAT, RANDOM(72)) < RELIABILITY THEN -UNIFORM(0, 4, RANDOM(75))
+                   ELSE IFF(OVERSEAS, UNIFORM(2, 30, RANDOM(76)), UNIFORM(1, 14, RANDOM(77))) END AS DELAY_DAYS
        FROM po
      )
 SELECT 'SHP-' || SUBSTR(PO_ID, 4) AS SHIPMENT_ID, PO_ID, VENDOR_ID, DC_ID, SHIP_DATE,
        DATEADD(day, TRANSIT, SHIP_DATE) AS ETA_DATE,
        CASE WHEN STATUS = 'in_transit' THEN NULL
-            ELSE DATEADD(day, ROUND(TRANSIT * (0.9 + UNIFORM(0::FLOAT, 1::FLOAT, RANDOM(72)) * IFF(OVERSEAS, 0.4, 0.25))), SHIP_DATE) END AS ARRIVAL_DATE,
+            ELSE GREATEST(DATEADD(day, 1, SHIP_DATE), DATEADD(day, DELAY_DAYS, PROMISED_DATE)) END AS ARRIVAL_DATE,
        MODE,
        ROUND(VALUE_CENTS * CASE MODE WHEN 'ocean' THEN 0.04 WHEN 'air' THEN 0.14 WHEN 'truck' THEN 0.05 ELSE 0.035 END
              * UNIFORM(0.8::FLOAT, 1.3::FLOAT, RANDOM(73)))::NUMBER AS FREIGHT_CENTS,

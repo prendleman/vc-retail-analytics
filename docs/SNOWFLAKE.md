@@ -12,7 +12,22 @@ Isolated database: **VC_RETAIL_DEMO** (do not reuse RELIEF_DEMO objects).
 | **Silver** | `SILVER.FACTS` dealer×SKU for 50 demo dealers (trailing 12 mo) ∪ event-sourced facts; `SILVER.MONTHLY` all 1,500 dealers × family × channel × month; `SILVER.QUARANTINE` invalid source rows | ~20M + <1M + ~15M rows | — |
 | **Gold** | Channel/family (scoped and all-dealer), weekly DC inventory, forecast by family-month, MRP exception summary, vendor scorecard | KBs–MBs | What the app reads for heavy metrics |
 
-Channel mapping: `store_sales`→Trade, `catalog_sales`→Contract, `web_sales`→Consumer. Dates shift +24 years so TPC-DS 2000-10..2002-09 lands on the demo window ending **2026-09-30**. Prices re-scale to a lighting range ($250–$4,450 list); margin = net − cost, floored at 0 and capped at 55% of net (same rule as the SQLite seed).
+**About "10 TB":** TPC-DS SF10TCL is the 10 TB *scale factor* (raw generated data, 56.9 billion rows). Snowflake stores it compressed: `INFORMATION_SCHEMA.TABLES` reports **2.63 TB** for the share, and that is the number the validation step records. Both figures are quoted in the evidence; don't present 10 TB as bytes-on-disk.
+
+### Re-skin rules (retailer → lighting dealer)
+
+TPC-DS is a general-merchandise retailer: ~30M units per store-month at $1–$100. A lighting dealer sells a few thousand units a month at $250–$4,450. `06_backbone.sql` therefore:
+
+| Rule | Setting | Effect |
+| --- | --- | --- |
+| Channel | `store_sales`→Trade, `catalog_sales`→Contract, `web_sales`→Consumer; catalog/web dealer = `MOD(order_number,1500)+1` | three channels, every dealer sells in all three |
+| Dates | +24 years (`YEAR_SHIFT`) | 2000-10..2002-09 → 2024-10..2026-09, fixed "today" 2026-09-30 |
+| Volume | keep 1 ticket/order in `--sample-mod` (default 200; hash independent of the dealer residue); qty 1..100 → 1..4 (`QTY_DIV` 25) | ≈ $1.3M net per dealer-month, 1–3 units per dealer × SKU × year |
+| Money | **never** the TPC-DS dollar columns; the row's own sales/list ratio is kept as a discount (clamped 0.55–1.00) and applied to the re-skinned `LIST_PRICE_CENTS` | net ≈ $420/unit, margin ≈ 22% of net (floored at 0, capped at 55% — same rule as the SQLite seed) |
+| DC inventory | `INV_QUANTITY_ON_HAND` 0..1000 → 0..10 (`INV_DIV` 100) | matched to re-skinned demand; MRP produces a real mix of shortage / expedite / de-expedite / cancel |
+| Dealer on-hand | derived from the dealer's trailing demand (15% stocked out, else 1–6 months of average demand) | DC stock is corporate, not apportioned to dealers |
+
+The full 56.9B-row share is still scanned every build (date-pruned to 24 of 60 months) — sampling happens after the read, which is what keeps the "runs against 10 TB" claim honest while producing dealer-sized numbers.
 
 ## Profiles (local `~/.snowflake/connections.toml` — never commit)
 
@@ -52,18 +67,27 @@ python3 -m scripts.cloud validate   --connection aq       # counts, backbone TB 
 python3 -m scripts.cloud reconcile  --connection aq       # docs/evidence/reconcile.json (event subset must equal local)
 ```
 
-`all` runs the whole chain. Flags: `--scale 0.1` for a cheap smoke build (200K POs), `--demo-dealers N` for the dealer×SKU scope, `--build-timeout` (default 5400 s).
+`all` runs the whole chain. Flags: `--scale 0.1` for a cheap smoke build (200K POs), `--demo-dealers N` for the dealer×SKU scope, `--sample-mod N` for the volume re-skin (default 200), `--build-timeout` (default 5400 s).
 
-### Cost expectations (LARGE = 8 credits/hour; verify against your contract rate)
+### Cost — measured (LARGE = 8 credits/hour)
 
-| Step | Work | Expected |
+| Step | Work | Measured on AWS us-east-1, 2026-10-03 |
 | --- | --- | --- |
-| backbone | dimension merges + one pass over inventory (783M rows) | ~1–2 credits |
-| generate | GENERATOR tables at scale 1.0 | ~0.5–1.5 credits |
-| build | scoped extract + grouping-sets pass over store/catalog/web sales (~50B rows, date-pruned to 24 of 60 months); 150M-row forecast; 10M-row MRP | ~4–8 credits |
-| serving | XSMALL, auto-suspend 60 s; most metrics 1–5 s on 20M-row `SILVER.FACTS`; heavy metrics read Gold | pennies per demo session |
+| backbone | dimension merges + one pass over inventory (783M rows) | 0.3–0.4 min |
+| generate | GENERATOR tables at scale 1.0 (2M POs, 8M lines, 1.6M BOM) | 1.1 min |
+| build | scoped extract + grouping-sets pass over store/catalog/web sales (56.9B rows, date-pruned); 150M-row forecast; 5M-row MRP | 2.6–2.9 min (8.4 min before the volume sampling) |
+| whole session | first run + 6 calibration rebuilds | **7.9 credits** on `AQ_VC_BUILD_WH`, 0.3 on the XSMALL serve warehouse |
+
+A single clean `all` run is therefore ~1 credit. Serving: XSMALL, auto-suspend 60 s; `/api/analytics` (≈40 governed queries, 6-way fan-out) completes in ~10 s; single metrics 0.3–2 s.
 
 `cloud.py` suspends `AQ_VC_BUILD_WH` after each heavy step. Nothing in this repo creates a resource monitor; add one at the account level if you want a hard cap (`CREATE RESOURCE MONITOR ... CREDIT_QUOTA=20 ... SUSPEND_IMMEDIATE`).
+
+### Admin steps that are deliberately *not* scripted
+
+```sql
+GRANT ROLE AQ_VC_READER TO USER <reader_user>;
+INSERT INTO VC_RETAIL_DEMO.GOVERNANCE.USER_DEALERS VALUES ('<reader_user>', '*');   -- or 'DLR-0001'
+```
 
 ## Reader access
 
@@ -77,6 +101,14 @@ On Snowflake the app keeps one authenticated connection, runs `/api/analytics` w
 
 Cortex (optional): set `SNOWFLAKE_HOST` + `SNOWFLAKE_PAT`, then `python3 -m scripts.cortex "What is net sales by channel?"`.
 
-## Status
+## Status — built and verified (2026-10-03)
 
-Not yet run against a live account from this repo — see `docs/VC_Submission_Verification.md` for what has and has not been demonstrated. Evidence lands in `docs/evidence/` once `validate` and `reconcile` run.
+Run end-to-end against a Snowflake Enterprise account on AWS us-east-1 (account locator `UKC32298`, a "CoCo for Developers" account created for this demo; no RELIEF_DEMO objects touched). Evidence in `docs/evidence/`:
+
+- `snowflake_doctor.log` — account, role, 24 TPC-DS SF10TCL tables visible.
+- `snowflake_validate.log` — layer counts (facts 1.65M, monthly 653K, POs 2M, PO lines 8M, inventory 65.3M, forecast 150.75M, MRP 5.0M, BOM 1.6M), channel totals, backbone 2.63 TB / 56.9B rows, quarantine mix, four integrity checks all 0.
+- `reconcile.json` — the 396 event-sourced facts in Snowflake match the local SQLite seed exactly (`event_subset_vs_local_*` = 0.0).
+
+Calibration verified through the app on the reader role: rep attainment median 98–102% (P10–P90 83–121%), PO past-due 20% median, vendor OTIF 38–95% across Prefer/Watch/Exit tiers, forecast bias ±12% by family, MRP exceptions in all four codes, margin ≈ 22% of net, dealer-scoped session (`dlr-0001`) row-filtered by the RAP.
+
+What is still not demonstrated: the Cortex Analyst path (needs a PAT-scoped REST call; not run), Openflow ingestion (the loader is staged Python), and a second Snowflake principal for dual-user RAP isolation (only `PRENDLEMANAQ` exists; a dealer-mapped reader user would be the next step).

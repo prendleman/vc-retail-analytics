@@ -20,7 +20,7 @@
 | Deterministic assistant | Implemented + tested | Exact-match router; hosted metric + clarify checks |
 | Session dealer scope | Implemented + tested | Local isolation suite |
 | Analytics sections | Implemented | Confirmed on hosted UI (full walkthrough + brief Core panel after fix deploy) |
-| Snowflake adapter / RAP | Code present, live not verified | No reconcile run |
+| Snowflake adapter / RAP | **Built and verified 2026-10-03** | Full `cloud.py` chain run on a dedicated Enterprise account (AWS us-east-1): TPC-DS SF10TCL backbone (56.9B rows / 2.63 TB compressed) + generated sales-org / procurement / inventory / MRP layer; `validate` integrity checks 0/0/0/0; `reconcile` event subset = local exactly; app served on reader role incl. dealer-scoped RAP session. Evidence: `docs/evidence/snowflake_*.log`, `reconcile.json`. Not yet shown: Cortex path, second RAP principal. See `docs/SNOWFLAKE.md`. |
 | LLM integration | Proposed only | Not in runtime |
 
 ## Hosted clarification fix check (d72fabf)
@@ -71,7 +71,7 @@ Confirmed: Access auth log entry `2026-10-02T22:16:46Z tyler@perceptiverecruitin
 | --- | --- |
 | Unit/API suite | PASS 6/6 |
 | Quarantine full seed | `quarantined=4` |
-| Snowflake parity | Not run |
+| Snowflake parity | PASS on 2026-10-03 (`reconcile.json`: event subset diff 0.0 facts / 0.0 sales) |
 | Direct `*.fly.dev` | 501 — use Cloudflare hostname |
 
 ## Screenshots in PDF

@@ -37,6 +37,9 @@ def _template_vars(a) -> dict:
         "AS_OF": AS_OF,
         "YEAR_SHIFT": "24",  # TPC-DS 2000-10..2002-09 -> 2024-10..2026-09
         "INV_WEEKS": "13",
+        "SAMPLE_MOD": str(a.sample_mod),  # keep 1 in N tickets/orders of the TPC-DS retailer volume
+        "QTY_DIV": "25",  # TPC-DS qty 1..100 -> 1..4 units per line
+        "INV_DIV": "100",  # TPC-DS on-hand 0..1000 -> 0..10 per DC x SKU
         "VENDOR_COUNT": str(max(12, int(60 * min(scale, 1.0)) or 12)),
         "REP_COUNT": str(max(40, int(600 * min(scale, 1.0)))),
         "COMPONENT_COUNT": str(max(500, int(50_000 * scale))),
@@ -267,6 +270,7 @@ def main():
     p.add_argument("--out", type=Path)
     p.add_argument("--scale", type=float, default=1.0, help="Generated-layer scale (1.0 = 2M POs, 50K components). Backbone is always the full 10 TB share.")
     p.add_argument("--demo-dealers", type=int, default=50, help="Dealers kept at dealer x SKU grain in SILVER.FACTS")
+    p.add_argument("--sample-mod", type=int, default=200, help="Keep 1 in N TPC-DS tickets/orders (volume re-skin: retailer -> lighting dealer). 1 = keep all.")
     p.add_argument("--build-timeout", type=int, default=5400)
     p.add_argument("--confirm-cost", action="store_true", help="Required for backbone/generate/build (LARGE warehouse credits)")
     a = p.parse_args()

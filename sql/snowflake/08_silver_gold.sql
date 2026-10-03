@@ -13,14 +13,15 @@ SELECT DEALER_ID FROM BRONZE.DEALERS ORDER BY DEALER_ID LIMIT {{DEMO_DEALER_COUN
 
 -- ---------------------------------------------------------------- pass 1: scoped raw extract
 CREATE OR REPLACE TABLE SILVER.BACKBONE_SCOPED CLUSTER BY (DEALER_ID) AS
-SELECT s.CHANNEL, s.DEALER_ID, s.ITEM_SK, s.MONTH, s.CAL_DATE, s.QTY, s.NET_PAID, s.DOC_NO
+SELECT s.CHANNEL, s.DEALER_ID, s.ITEM_SK, s.MONTH, s.CAL_DATE, s.QTY, s.NET_PAID, s.DISC_RATIO, s.DOC_NO
 FROM BRONZE.BACKBONE_SALES s
 WHERE s.DEALER_ID IN (SELECT DEALER_ID FROM SILVER.DEMO_DEALERS);
 
 -- Validation reasons mirror the event path (invalid_amount / unknown_sku / margin rules applied after re-skin).
+-- Net = re-skinned list price x row discount x qty (TPC-DS dollar columns are not used for money).
 CREATE OR REPLACE TABLE SILVER.BACKBONE_SCOPED_VALIDATED CLUSTER BY (DEALER_ID) AS
-SELECT b.*, p.SKU_ID, p.FAMILY, p.LEAD_BAND, p.COST_CENTS, p.PRICE_FACTOR,
-       ROUND(b.NET_PAID * p.PRICE_FACTOR * 100)::NUMBER AS NET_SALES_CENTS,
+SELECT b.*, p.SKU_ID, p.FAMILY, p.LEAD_BAND, p.COST_CENTS, p.LIST_PRICE_CENTS,
+       ROUND(b.QTY * p.LIST_PRICE_CENTS * b.DISC_RATIO)::NUMBER AS NET_SALES_CENTS,
        CASE
          WHEN p.SKU_ID IS NULL THEN 'unknown_sku'
          WHEN b.QTY IS NULL OR b.NET_PAID IS NULL THEN 'missing_field'
@@ -34,13 +35,16 @@ CREATE OR REPLACE TABLE SILVER.DEALER_REP AS
 SELECT DEALER_ID, REP_ID FROM BRONZE.REP_ASSIGNMENTS WHERE END_MONTH IS NULL
 QUALIFY ROW_NUMBER() OVER (PARTITION BY DEALER_ID ORDER BY START_MONTH DESC, REP_ID) = 1;
 
--- Latest DC on-hand per SKU, apportioned to dealers served by that DC.
+-- Dealer showroom stock: DC stock is corporate (BRONZE.INVENTORY_SNAPSHOTS), so dealer on-hand is derived from the
+-- dealer's own trailing demand: ~15% of dealer x SKU rows are stocked out, the rest hold 1-6 months of average demand
+-- (at least one display unit). Deterministic per (dealer, SKU).
 CREATE OR REPLACE TABLE SILVER.DEALER_ON_HAND CLUSTER BY (DEALER_ID) AS
-WITH latest AS (SELECT MAX(SNAPSHOT_WEEK) AS W FROM BRONZE.INVENTORY_BACKBONE),
-     inv AS (SELECT i.DC_ID, i.SKU_ID, i.ON_HAND FROM BRONZE.INVENTORY_BACKBONE i JOIN latest ON latest.W = i.SNAPSHOT_WEEK)
-SELECT dd.DEALER_ID, inv.SKU_ID, FLOOR(inv.ON_HAND / NULLIF(dd.DEALERS_IN_DC, 0))::NUMBER AS ON_HAND
-FROM BRONZE.DEALER_DC dd JOIN inv ON inv.DC_ID = dd.DC_ID
-WHERE dd.DEALER_ID IN (SELECT DEALER_ID FROM SILVER.DEMO_DEALERS);
+SELECT v.DEALER_ID, v.SKU_ID,
+       IFF(MOD(ABS(HASH(v.DEALER_ID, v.SKU_ID)), 100) < 15, 0,
+           GREATEST(1, CEIL(SUM(v.QTY) / 12.0 * (1 + MOD(ABS(HASH(v.SKU_ID, v.DEALER_ID)), 6)))))::NUMBER AS ON_HAND
+FROM SILVER.BACKBONE_SCOPED_VALIDATED v
+WHERE v.REASON IS NULL AND v.MONTH >= TO_VARCHAR(DATEADD(month, -12, '{{AS_OF}}'::DATE), 'YYYY-MM')
+GROUP BY v.DEALER_ID, v.SKU_ID;
 
 -- SILVER.FACTS: trailing-12-month dealer x SKU facts for the demo scope, UNION event-sourced facts (02).
 CREATE OR REPLACE TABLE SILVER.FACTS CLUSTER BY (DEALER_ID) AS
@@ -79,9 +83,9 @@ CREATE OR REPLACE TABLE GOLD.SALES_GROUPING_SETS AS
 SELECT GROUPING_ID(s.DEALER_ID, p.FAMILY, s.CHANNEL, p.ITEM_SK) AS GID,
        s.DEALER_ID, p.FAMILY, s.CHANNEL, p.ITEM_SK, s.MONTH,
        SUM(s.QTY) AS UNITS_SOLD,
-       SUM(ROUND(s.NET_PAID * p.PRICE_FACTOR * 100)) AS NET_SALES_CENTS,
-       SUM(LEAST(ROUND(s.NET_PAID * p.PRICE_FACTOR * 100 * 0.55),
-                 GREATEST(0, ROUND(s.NET_PAID * p.PRICE_FACTOR * 100) - p.COST_CENTS * s.QTY))) AS MARGIN_CENTS
+       SUM(ROUND(s.QTY * p.LIST_PRICE_CENTS * s.DISC_RATIO)) AS NET_SALES_CENTS,
+       SUM(LEAST(ROUND(s.QTY * p.LIST_PRICE_CENTS * s.DISC_RATIO * 0.55),
+                 GREATEST(0, ROUND(s.QTY * p.LIST_PRICE_CENTS * s.DISC_RATIO) - p.COST_CENTS * s.QTY))) AS MARGIN_CENTS
 FROM BRONZE.BACKBONE_SALES s
 JOIN BRONZE.PRODUCTS_BACKBONE p ON p.ITEM_SK = s.ITEM_SK
 WHERE s.DEALER_ID IS NOT NULL AND s.QTY > 0 AND s.NET_PAID >= 0
@@ -111,13 +115,19 @@ WITH q AS (
                                             WHEN SUBSTR(MONTH,6,2) IN ('07','08','09') THEN '-Q3' ELSE '-Q4' END AS QUARTER,
          SUM(NET_SALES_CENTS) AS Q_CENTS
   FROM SILVER.MONTHLY GROUP BY REP_ID, QUARTER
-), base AS (SELECT REP_ID, AVG(Q_CENTS) AS AVG_Q FROM q GROUP BY REP_ID),
-   quarters AS (SELECT DISTINCT QUARTER FROM q),
-   idx AS (SELECT QUARTER, ROW_NUMBER() OVER (ORDER BY QUARTER) - 1 AS I FROM quarters)
+  -- full quarters only (the calendar window may spill a day into a neighbouring quarter)
+  HAVING COUNT(DISTINCT MONTH) = 3
+), recent AS (SELECT DISTINCT QUARTER FROM q ORDER BY QUARTER DESC LIMIT 4),
+   -- quota base = the rep's trailing-4-quarter average (a rep's book of dealers changes over the window)
+   base AS (SELECT REP_ID, AVG(Q_CENTS) AS AVG_Q FROM q WHERE QUARTER IN (SELECT QUARTER FROM recent) GROUP BY REP_ID),
+   -- company seasonal index: TPC-DS has strong Q4 / Q3 peaks; quotas follow the same seasonality so attainment
+   -- centres near 100% and the spread is rep-level over/under-performance, not the calendar.
+   season AS (SELECT QUARTER, SUM(Q_CENTS) / (SELECT SUM(Q_CENTS) / COUNT(DISTINCT QUARTER) FROM q) AS IDX FROM q GROUP BY QUARTER),
+   idx AS (SELECT QUARTER, IDX, ROW_NUMBER() OVER (ORDER BY QUARTER) - 1 AS I FROM season)
 SELECT sp.REP_ID, idx.QUARTER,
-       ROUND(COALESCE(b.AVG_Q, sp.QUARTERLY_QUOTA_CENTS) * (0.85 + UNIFORM(0::FLOAT, 1::FLOAT, RANDOM(91)) * 0.30)
-             * POWER(1.045, idx.I / 4.0)
-             * CASE WHEN idx.QUARTER LIKE '%Q4' THEN 1.12 WHEN idx.QUARTER LIKE '%Q1' THEN 0.92 ELSE 1.0 END)::NUMBER AS QUOTA_CENTS
+       ROUND(COALESCE(b.AVG_Q, sp.QUARTERLY_QUOTA_CENTS) * idx.IDX
+             * (0.85 + UNIFORM(0::FLOAT, 1::FLOAT, RANDOM(91)) * 0.30)
+             * POWER(1.03, idx.I / 4.0))::NUMBER AS QUOTA_CENTS
 FROM BRONZE.SALESPEOPLE sp CROSS JOIN idx LEFT JOIN base b ON b.REP_ID = sp.REP_ID;
 
 -- ---------------------------------------------------------------- vendor KPI from receipts (replaces loaded synthetic KPI)
@@ -166,17 +176,27 @@ WITH months AS (
   SELECT FAMILY, (-0.12 + UNIFORM(0::FLOAT, 1::FLOAT, RANDOM(111)) * 0.24) AS BIAS FROM (SELECT DISTINCT FAMILY FROM BRONZE.PRODUCTS_BACKBONE)
 ), dc AS (SELECT DC_ID, ROW_NUMBER() OVER (ORDER BY DC_ID) AS RN, COUNT(*) OVER () AS N FROM BRONZE.DISTRIBUTION_CENTERS),
    base AS (
+     -- history months: forecast is calibrated to the month's actual (family bias +-12%, noise 0.7-1.3), with a
+     -- 5% chance of forecasting one unit where nothing sold. Future months (after AS_OF) use last year's actual.
      SELECT p.SKU_ID, p.FAMILY, m.MONTH,
-            COALESCE(a.UNITS_SOLD, a12.UNITS_SOLD, 0) AS ACTUAL_OR_LY
+            CASE WHEN m.MONTH > TO_VARCHAR('{{AS_OF}}'::DATE, 'YYYY-MM') THEN COALESCE(a12.UNITS_SOLD, 0)
+                 ELSE COALESCE(a.UNITS_SOLD, IFF(MOD(ABS(HASH(p.SKU_ID, m.MONTH)), 100) < 5, 1, 0)) END AS BASE_UNITS
      FROM BRONZE.PRODUCTS_BACKBONE p CROSS JOIN months m
      LEFT JOIN SILVER.ITEM_MONTHLY a ON a.SKU_ID = p.SKU_ID AND a.MONTH = m.MONTH
      LEFT JOIN SILVER.ITEM_MONTHLY a12 ON a12.SKU_ID = p.SKU_ID AND a12.MONTH = TO_VARCHAR(DATEADD(month, -12, TO_DATE(m.MONTH || '-01')), 'YYYY-MM')
+   ),
+   tot AS (
+     SELECT b.SKU_ID, b.FAMILY, b.MONTH,
+            GREATEST(0, ROUND(b.BASE_UNITS * (1.0 + fb.BIAS) * (0.7 + UNIFORM(0::FLOAT, 1::FLOAT, RANDOM(112)) * 0.6)))::NUMBER AS T,
+            ABS(HASH(b.SKU_ID, b.MONTH)) AS H
+     FROM base b JOIN fam_bias fb ON fb.FAMILY = b.FAMILY
    )
-SELECT b.MONTH, dc.DC_ID, b.SKU_ID,
-       GREATEST(0, ROUND(b.ACTUAL_OR_LY * (1.0 + fb.BIAS) * (0.7 + UNIFORM(0::FLOAT, 1::FLOAT, RANDOM(112)) * 0.6)
-                         * (0.5 + UNIFORM(0::FLOAT, 1::FLOAT, RANDOM(113))) / dc.N))::NUMBER AS FORECAST_UNITS,
-       ARRAY_CONSTRUCT('seasonal_naive','ets','croston','override')[MOD(ABS(HASH(b.SKU_ID)), 4)]::VARCHAR AS FORECAST_METHOD
-FROM base b JOIN fam_bias fb ON fb.FAMILY = b.FAMILY CROSS JOIN dc;
+-- Split the SKU-month total across DCs without rounding drift: every DC gets FLOOR(T/N) and a rotating subset
+-- of MOD(T, N) DCs gets one more, so SUM over DCs = T exactly.
+SELECT t.MONTH, dc.DC_ID, t.SKU_ID,
+       (FLOOR(t.T / dc.N) + IFF(MOD(dc.RN - 1 + t.H, dc.N) < MOD(t.T, dc.N), 1, 0))::NUMBER AS FORECAST_UNITS,
+       ARRAY_CONSTRUCT('seasonal_naive','ets','croston','override')[MOD(ABS(HASH(t.SKU_ID)), 4)]::VARCHAR AS FORECAST_METHOD
+FROM tot t CROSS JOIN dc;
 
 -- ---------------------------------------------------------------- MRP plan (latest run) + work orders
 CREATE OR REPLACE TABLE BRONZE.MRP_PLAN CLUSTER BY (RUN_MONTH, EXCEPTION_CODE) AS
