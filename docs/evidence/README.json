@@ -1,1 +1,11 @@
-{"note":"Place live Snowflake reconcile.json / screenshots here after cloud validation.","synthetic":true}
+{
+  "note": "Logged runs against the dedicated Snowflake Enterprise account (AWS us-east-1). Account identifiers and tokens redacted. All data synthetic.",
+  "synthetic": true,
+  "files": {
+    "snowflake_doctor.txt": "doctor step: role, warehouse, TPC-DS SF10TCL share visible",
+    "snowflake_validate.txt": "validate step: layer counts, backbone size, integrity checks",
+    "reconcile.json": "event-sourced subset vs local SQLite seed (exact match)",
+    "rap_dual_principal.txt": "row access policy on three principals incl. one pinned to DLR-0001; role escalation and governance-table reads denied",
+    "cortex_analyst.txt": "Cortex Analyst REST path over both semantic views; generated SQL executed as pinned and unrestricted principals"
+  }
+}

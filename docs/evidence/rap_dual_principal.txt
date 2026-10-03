@@ -1,0 +1,29 @@
+# RAP dual-principal evidence — 2026-10-03 18:51 CDT
+# Policy: GOVERNANCE.DEALER_SCOPE on DEALER_ID, keyed by CURRENT_USER() via GOVERNANCE.USER_DEALERS
+USER_DEALERS: [('PRENDLEMANAQ', '*'), ('VC_DLR0001_SVC', 'DLR-0001'), ('VC_FLY_SVC', '*')]
+VC_DLR0001_SVC grants: [('USAGE', 'AQ_VC_READER')]
+
+[owner (mapped '*')] session = ('PRENDLEMANAQ', 'ACCOUNTADMIN')
+  DEALERS              rows=     1,500  distinct dealers=1500
+  SILVER_FACTS         rows= 1,645,231  distinct dealers=50
+  SILVER_MONTHLY       rows=   652,909  distinct dealers=1500
+  GOLD_CHANNEL_FAMILY  rows=       941  distinct dealers=50
+  REP_ASSIGNMENTS      rows=     1,799  distinct dealers=1500
+  QUARANTINE           rows=    37,409  distinct dealers=50
+  first dealer ids: ['DLR-0001', 'DLR-0002', 'DLR-0003']
+  PURCHASE_ORDERS (not dealer-keyed, documented) rows=2,000,000
+[VC_DLR0001_SVC (mapped DLR-0001)] session = ('VC_DLR0001_SVC', 'AQ_VC_READER')
+  DEALERS              rows=         1  distinct dealers=1
+  SILVER_FACTS         rows=    49,096  distinct dealers=1
+  SILVER_MONTHLY       rows=       518  distinct dealers=1
+  GOLD_CHANNEL_FAMILY  rows=        21  distinct dealers=1
+  REP_ASSIGNMENTS      rows=         1  distinct dealers=1
+  QUARANTINE           rows=     1,328  distinct dealers=1
+  first dealer ids: ['DLR-0001']
+  PURCHASE_ORDERS (not dealer-keyed, documented) rows=2,000,000
+
+[VC_DLR0001_SVC] attempt a dealer not mapped to this user: SELECT * FROM DEALERS WHERE DEALER_ID='DLR-0002' -> 0 rows
+[VC_DLR0001_SVC] USE ROLE ACCOUNTADMIN -> denied: 003107 (42501): SQL execution error:
+[VC_DLR0001_SVC] read GOVERNANCE.USER_DEALERS -> denied: 002003 (02000): SQL compilation error:
+
+cleanup: PAT RAP_DEMO removed; tokens remaining on VC_DLR0001_SVC: []
