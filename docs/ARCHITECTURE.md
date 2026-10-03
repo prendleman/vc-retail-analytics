@@ -13,9 +13,17 @@ AQ cloud: staged Python loader (not Openflow) → VARIANT Bronze → Snowflake n
 - Event: globally unique `event_id`; immutable `(dealer_id, source_id, version)`.
 - Silver fact: one latest valid row per `(dealer_id, sku_id)` for current inventory + trailing sell-through (includes `rep_id`, `cost_cents`).
 - Monthly facts: 24-month synthetic series per dealer×SKU for seasonality.
-- Dims: territories, salespeople, vendors (+ vendor KPI rollup).
-- Gold: channel × region × family aggregates.
-- Quarantine: every invalid event version.
+- Dims: territories, salespeople, vendors (+ vendor KPI rollup), distribution centers.
+- Sales org: `rep_assignments` (dealer → rep with start/end month history), `rep_quotas` (rep × quarter, calibrated to actuals).
+- Procurement: `vendor_contracts`, `purchase_orders` → `po_lines`, `shipments` (mode, ETA, arrival, freight), `receipts` (qty received / defective). OTIF is computed from receipts vs promised dates, not stored.
+- Inventory: `inventory_snapshots` weekly by DC × SKU (on-hand, on-order, allocated, in-transit).
+- MRP: `components` + `bom` (parent SKU → component × qty), `demand_forecast` (month × DC × SKU), `mrp_plan` (latest run: net requirement, planned order, release/due, exception code), `work_orders` for assembled families.
+- Gold: channel × region × family aggregates; on Snowflake also weekly DC inventory, forecast by family-month, MRP exception summary, vendor scorecard.
+- Quarantine: every invalid event version (and, on Snowflake, invalid backbone source rows for the scoped dealers).
+
+## Same schema, two scales
+
+The SQLite seed and the Snowflake SERVING schema share table names and lowercase column names, so one set of governed metric SQL (`app/core.py`, `app/supply_chain.py`) runs on both. SQLite holds ~50 dealers × 200 SKUs; Snowflake re-skins the shared 10 TB TPC-DS dataset as the sales/inventory backbone and generates the sales-org / procurement / MRP layer on top (`sql/snowflake/06–08`). Heavy metrics switch to Gold-backed views via the `snowflake` dialect in `metric_sql`. See `docs/SNOWFLAKE.md`.
 
 ## Quality policy
 

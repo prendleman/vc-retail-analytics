@@ -24,7 +24,7 @@ Open **http://127.0.0.1:8770** → Login → `/app`.
 
 **Hard-refresh** after deploy or first load if Analytics looks like plain text tables.
 
-**Snowflake-backed mode** (after cloud bootstrap): see `docs/SNOWFLAKE.md`.
+**Snowflake-backed mode** (after cloud bootstrap): see `docs/SNOWFLAKE.md` — re-skins Snowflake's shared 10 TB TPC-DS dataset as the sales/inventory backbone and generates salespeople, vendors, POs/shipments/receipts, DC inventory, BOM, forecast, and MRP on top. Same schema and governed metric SQL as the local SQLite demo; heavy metrics read Gold.
 
 ## What this demo shows
 

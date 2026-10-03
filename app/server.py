@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -44,10 +46,30 @@ CTYPES = {
 
 
 class Store:
+    """Local SQLite by default; Snowflake backend keeps one authenticated connection (externalbrowser/key-pair
+    happen once) and serves heavy metrics from Gold-backed SERVING views via the 'snowflake' SQL dialect."""
+
     def __init__(self, path, backend="local", connection="aq_vc_reader"):
         self.path = path
         self.backend = backend
         self.connection = connection
+        self.dialect = "snowflake" if backend == "snowflake" else "sqlite"
+        self._sf = None
+        self._lock = threading.Lock()
+
+    def _snowflake(self):
+        import snowflake.connector
+
+        with self._lock:
+            if self._sf is None or self._sf.is_closed():
+                self._sf = snowflake.connector.connect(
+                    connection_name=self.connection,
+                    session_parameters={"QUERY_TAG": "vc-retail-demo-app", "STATEMENT_TIMEOUT_IN_SECONDS": 60},
+                    client_session_keep_alive=True,
+                )
+                self._sf.cursor().execute("USE DATABASE VC_RETAIL_DEMO")
+                self._sf.cursor().execute("USE SCHEMA SERVING")
+            return self._sf
 
     def rows(self, sql, params=()):
         if self.backend == "local":
@@ -56,17 +78,27 @@ class Store:
                 return [dict(r) for r in c.execute(sql, params)]
             finally:
                 c.close()
-        import snowflake.connector
+        c = self._snowflake()
+        try:
+            cur = c.cursor().execute(sql.replace("?", "%s"), list(params))
+        except Exception:
+            # One reconnect on a dropped session, then surface the error.
+            with self._lock:
+                self._sf = None
+            cur = self._snowflake().cursor().execute(sql.replace("?", "%s"), list(params))
+        columns = [d[0].lower() for d in cur.description]
+        return [dict(zip(columns, r)) for r in cur.fetchall()]
 
-        with snowflake.connector.connect(
-            connection_name=self.connection,
-            session_parameters={"QUERY_TAG": "vc-retail-demo-app", "STATEMENT_TIMEOUT_IN_SECONDS": 30},
-        ) as c:
-            c.cursor().execute("USE DATABASE VC_RETAIL_DEMO")
-            c.cursor().execute("USE SCHEMA SERVING")
-            cur = c.cursor().execute(sql.replace("?", "%s"), params)
-            columns = [d[0].lower() for d in cur.description]
-            return [dict(zip(columns, r)) for r in cur.fetchall()]
+    def metric_rows(self, name, dealer):
+        return self.rows(*metric_sql(name, dealer, self.dialect))
+
+    def many(self, names, dealer):
+        """Run several governed metrics; fan out on Snowflake (network-bound), sequential on SQLite."""
+        if self.backend == "local":
+            return {n: self.metric_rows(n, dealer) for n in names}
+        with ThreadPoolExecutor(max_workers=6) as pool:
+            futures = {n: pool.submit(self.metric_rows, n, dealer) for n in names}
+            return {n: f.result() for n, f in futures.items()}
 
     def audit(self, dealer, metric, n):
         c = connect(self.path)
@@ -148,6 +180,11 @@ class Handler(BaseHTTPRequestHandler):
                             "scope": scope,
                             "synthetic": True,
                             "label": "VC Retail Analytics — synthetic demo",
+                            "data_scale": (
+                                "Snowflake: 10 TB TPC-DS backbone (shared) + generated sales-org / procurement / inventory / MRP layer"
+                                if s.backend == "snowflake"
+                                else "SQLite: small synthetic seed (same schema as Snowflake SERVING)"
+                            ),
                         }
                     )
                 dealer = self.scope(q)
@@ -159,14 +196,21 @@ class Handler(BaseHTTPRequestHandler):
                             "metrics": {k: v["description"] for k, v in METRICS.items()},
                             "faq_ids": [f["id"] for f in FAQ],
                             "lineage": [
-                                "synthetic dealer + catalog",
-                                "bronze events",
-                                "validated silver_facts",
-                                "gold_channel_family",
+                                "synthetic dealer + catalog (Snowflake: TPC-DS 10 TB backbone re-skinned)",
+                                "bronze events / backbone sales + inventory",
+                                "validated silver_facts + monthly",
+                                "sales org · procurement · inventory · MRP (generated layer)",
+                                "gold aggregates",
                                 "dashboard / governed tools",
                             ],
-                            "grain": "One current fact per (dealer_id, sku_id)",
+                            "grain": "One current fact per (dealer_id, sku_id); PO lines, weekly DC snapshots, monthly forecast, latest MRP run",
                             "amounts": "USD cents in Silver; dollars in Gold/API",
+                            "domains": {
+                                "sales_org": ["salespeople", "territories", "rep_assignments", "rep_quotas"],
+                                "procurement": ["vendors", "vendor_contracts", "purchase_orders", "po_lines", "shipments", "receipts"],
+                                "inventory": ["distribution_centers", "inventory_snapshots"],
+                                "mrp": ["components", "bom", "demand_forecast", "mrp_plan", "work_orders"],
+                            },
                         }
                     )
                 if u.path == "/api/dealers":
@@ -202,7 +246,7 @@ class Handler(BaseHTTPRequestHandler):
                     return self.send(row)
                 if u.path == "/api/metric":
                     name = q.get("name", ["portfolio"])[0]
-                    sql, p = metric_sql(name, dealer)
+                    sql, p = metric_sql(name, dealer, s.dialect)
                     start = time.perf_counter()
                     rows = s.rows(sql, p)
                     s.audit(dealer, name, len(rows))
@@ -241,6 +285,23 @@ class Handler(BaseHTTPRequestHandler):
                         "rep_grade",
                         "vendor_otif",
                         "vendor_scorecard",
+                        # sales org / procurement / inventory / MRP
+                        "rep_attainment",
+                        "rep_coverage",
+                        "po_past_due",
+                        "inbound_pipeline",
+                        "vendor_otif_detail",
+                        "vendor_defects",
+                        "vendor_concentration",
+                        "freight_cost",
+                        "dc_inventory_health",
+                        "inventory_trend",
+                        "mrp_exceptions",
+                        "mrp_shortages",
+                        "forecast_accuracy",
+                        "bom_cost_rollup",
+                        "component_risk",
+                        "work_order_status",
                     ]
                     payload = {
                         "synthetic": True,
@@ -255,8 +316,7 @@ class Handler(BaseHTTPRequestHandler):
                         )[0],
                         "elapsed_ms": 0,
                     }
-                    for key in deep_keys:
-                        payload[key] = s.rows(*metric_sql(key, dealer))
+                    payload.update(s.many(deep_keys, dealer))
                     payload["elapsed_ms"] = round((time.perf_counter() - start) * 1000, 2)
                     s.audit(dealer, "analytics", len(payload["by_channel"]))
                     return self.send(payload)
@@ -400,7 +460,7 @@ class Handler(BaseHTTPRequestHandler):
                         },
                         400,
                     )
-                sql, p = metric_sql(name, dealer)
+                sql, p = metric_sql(name, dealer, s.dialect)
                 rows = s.rows(sql, p)
                 s.audit(dealer, name, len(rows))
                 return self.send(

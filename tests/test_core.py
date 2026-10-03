@@ -90,6 +90,52 @@ class SeedTests(unittest.TestCase):
             self.assertIn("margin_pct", METRICS)
             self.assertIn("vendor_scorecard", METRICS)
 
+    def test_supply_chain_domains(self):
+        from app import supply_chain as sc
+        from app.core import connect
+
+        with tempfile.TemporaryDirectory() as d:
+            db = Path(d) / "t.db"
+            result = seed(db, dealers=8, skus=30)
+            counts = result["supply_chain"]
+            for t in sc.TABLES:
+                self.assertGreater(counts[t], 0, msg=t)
+            c = connect(db)
+            try:
+                # Every PO line belongs to a PO; every receipt to a shipment; BOM parents exist.
+                self.assertEqual(c.execute("SELECT COUNT(*) FROM po_lines pl LEFT JOIN purchase_orders po ON po.po_id=pl.po_id WHERE po.po_id IS NULL").fetchone()[0], 0)
+                self.assertEqual(c.execute("SELECT COUNT(*) FROM receipts r LEFT JOIN shipments s ON s.shipment_id=r.shipment_id WHERE s.shipment_id IS NULL").fetchone()[0], 0)
+                self.assertEqual(c.execute("SELECT COUNT(*) FROM bom b LEFT JOIN products p ON p.sku_id=b.parent_sku_id WHERE p.sku_id IS NULL").fetchone()[0], 0)
+                # Every dealer has exactly one active rep assignment.
+                self.assertEqual(
+                    c.execute("SELECT COUNT(*) FROM (SELECT dealer_id, SUM(CASE WHEN end_month IS NULL THEN 1 ELSE 0 END) n FROM rep_assignments GROUP BY dealer_id HAVING n <> 1)").fetchone()[0],
+                    0,
+                )
+                # Quotas are calibrated: latest-quarter attainment stays in a plausible band.
+                sql, params = metric_sql("rep_attainment", None)
+                att = [r["attainment_pct"] for r in c.execute(sql, params) if r["attainment_pct"] is not None]
+                self.assertTrue(att and all(50 <= a <= 200 for a in att), att)
+                for name in sc.SC_METRICS:
+                    for dealer in ("DLR-0001", None):
+                        sql, params = metric_sql(name, dealer)
+                        rows = list(c.execute(sql, params))
+                        self.assertIsInstance(rows, list, msg=f"{name}/{dealer}")
+                self.assertEqual(interpret_metric("show mrp exceptions"), "mrp_exceptions")
+                self.assertEqual(interpret_metric("show past due pos"), "po_past_due")
+                # Snowflake dialect swaps heavy metrics to Gold-backed views; others are identical text.
+                for name in sc.SNOWFLAKE_OVERRIDES:
+                    self.assertIn(name, METRICS)
+                    self.assertIn("gold_", metric_sql(name, None, "snowflake")[0])
+                    self.assertNotIn("gold_", metric_sql(name, None)[0])
+                self.assertEqual(metric_sql("by_channel", None)[0], metric_sql("by_channel", None, "snowflake")[0])
+                # Portability guard: no SQLite-only scalar MIN/MAX(a, b) in governed SQL.
+                import re as _re
+
+                for name, spec in METRICS.items():
+                    self.assertIsNone(_re.search(r"\b(MIN|MAX)\(\s*[\w.]+\s*,", spec["sql"]), msg=name)
+            finally:
+                c.close()
+
 
 class AssistantTests(unittest.TestCase):
     def test_metric_router(self):

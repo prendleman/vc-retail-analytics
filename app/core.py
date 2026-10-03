@@ -9,6 +9,8 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+from app import supply_chain
+
 ROOT = Path(__file__).resolve().parents[1]
 DB = ROOT / "data" / "demo.db"
 
@@ -386,15 +388,15 @@ METRICS = {
             ") "
             "SELECT s.rep_id, s.rep, s.attainment_pct, s.margin_pct, s.mix_pct, s.stock_discipline, "
             "ROUND("
-            "  0.40 * MIN(100, s.attainment_pct) + "
-            "  0.30 * MIN(100, 100.0 * s.margin_pct / NULLIF(p.peer_margin, 0)) + "
+            "  0.40 * CASE WHEN s.attainment_pct > 100 THEN 100 ELSE s.attainment_pct END + "
+            "  0.30 * CASE WHEN 100.0 * s.margin_pct / NULLIF(p.peer_margin, 0) > 100 THEN 100 ELSE 100.0 * s.margin_pct / NULLIF(p.peer_margin, 0) END + "
             "  0.20 * s.mix_pct + "
             "  0.10 * s.stock_discipline"
             ", 1) AS composite, "
             "CASE "
-            "  WHEN (0.40 * MIN(100, s.attainment_pct) + 0.30 * MIN(100, 100.0 * s.margin_pct / NULLIF(p.peer_margin, 0)) + 0.20 * s.mix_pct + 0.10 * s.stock_discipline) >= 85 THEN 'A' "
-            "  WHEN (0.40 * MIN(100, s.attainment_pct) + 0.30 * MIN(100, 100.0 * s.margin_pct / NULLIF(p.peer_margin, 0)) + 0.20 * s.mix_pct + 0.10 * s.stock_discipline) >= 70 THEN 'B' "
-            "  WHEN (0.40 * MIN(100, s.attainment_pct) + 0.30 * MIN(100, 100.0 * s.margin_pct / NULLIF(p.peer_margin, 0)) + 0.20 * s.mix_pct + 0.10 * s.stock_discipline) >= 55 THEN 'C' "
+            "  WHEN (0.40 * CASE WHEN s.attainment_pct > 100 THEN 100 ELSE s.attainment_pct END + 0.30 * CASE WHEN 100.0 * s.margin_pct / NULLIF(p.peer_margin, 0) > 100 THEN 100 ELSE 100.0 * s.margin_pct / NULLIF(p.peer_margin, 0) END + 0.20 * s.mix_pct + 0.10 * s.stock_discipline) >= 85 THEN 'A' "
+            "  WHEN (0.40 * CASE WHEN s.attainment_pct > 100 THEN 100 ELSE s.attainment_pct END + 0.30 * CASE WHEN 100.0 * s.margin_pct / NULLIF(p.peer_margin, 0) > 100 THEN 100 ELSE 100.0 * s.margin_pct / NULLIF(p.peer_margin, 0) END + 0.20 * s.mix_pct + 0.10 * s.stock_discipline) >= 70 THEN 'B' "
+            "  WHEN (0.40 * CASE WHEN s.attainment_pct > 100 THEN 100 ELSE s.attainment_pct END + 0.30 * CASE WHEN 100.0 * s.margin_pct / NULLIF(p.peer_margin, 0) > 100 THEN 100 ELSE 100.0 * s.margin_pct / NULLIF(p.peer_margin, 0) END + 0.20 * s.mix_pct + 0.10 * s.stock_discipline) >= 55 THEN 'C' "
             "  ELSE 'D' END AS grade "
             "FROM scored s CROSS JOIN peer p ORDER BY composite DESC"
         ),
@@ -421,17 +423,17 @@ METRICS = {
             ") "
             "SELECT v.vendor_id, v.name, v.country, vk.otif_pct, "
             "ROUND(100.0 - vk.defect_pct, 1) AS quality_pct, "
-            "ROUND(100.0 * MIN(1.0, vk.promised_lead_days / NULLIF(vk.avg_lead_days, 0)), 1) AS lead_reliability, "
+            "ROUND(100.0 * CASE WHEN vk.promised_lead_days / NULLIF(vk.avg_lead_days, 0) > 1.0 THEN 1.0 ELSE vk.promised_lead_days / NULLIF(vk.avg_lead_days, 0) END, 1) AS lead_reliability, "
             "COALESCE(vm.margin_pct, 0) AS margin_pct, "
             "ROUND("
             "  0.35 * vk.otif_pct + "
             "  0.25 * (100.0 - vk.defect_pct) + "
-            "  0.20 * (100.0 * MIN(1.0, vk.promised_lead_days / NULLIF(vk.avg_lead_days, 0))) + "
+            "  0.20 * (100.0 * CASE WHEN vk.promised_lead_days / NULLIF(vk.avg_lead_days, 0) > 1.0 THEN 1.0 ELSE vk.promised_lead_days / NULLIF(vk.avg_lead_days, 0) END) + "
             "  0.20 * COALESCE(vm.margin_pct, 0)"
             ", 1) AS score, "
             "CASE "
-            "  WHEN (0.35 * vk.otif_pct + 0.25 * (100.0 - vk.defect_pct) + 0.20 * (100.0 * MIN(1.0, vk.promised_lead_days / NULLIF(vk.avg_lead_days, 0))) + 0.20 * COALESCE(vm.margin_pct, 0)) >= 80 THEN 'Prefer' "
-            "  WHEN (0.35 * vk.otif_pct + 0.25 * (100.0 - vk.defect_pct) + 0.20 * (100.0 * MIN(1.0, vk.promised_lead_days / NULLIF(vk.avg_lead_days, 0))) + 0.20 * COALESCE(vm.margin_pct, 0)) >= 60 THEN 'Watch' "
+            "  WHEN (0.35 * vk.otif_pct + 0.25 * (100.0 - vk.defect_pct) + 0.20 * (100.0 * CASE WHEN vk.promised_lead_days / NULLIF(vk.avg_lead_days, 0) > 1.0 THEN 1.0 ELSE vk.promised_lead_days / NULLIF(vk.avg_lead_days, 0) END) + 0.20 * COALESCE(vm.margin_pct, 0)) >= 80 THEN 'Prefer' "
+            "  WHEN (0.35 * vk.otif_pct + 0.25 * (100.0 - vk.defect_pct) + 0.20 * (100.0 * CASE WHEN vk.promised_lead_days / NULLIF(vk.avg_lead_days, 0) > 1.0 THEN 1.0 ELSE vk.promised_lead_days / NULLIF(vk.avg_lead_days, 0) END) + 0.20 * COALESCE(vm.margin_pct, 0)) >= 60 THEN 'Watch' "
             "  ELSE 'Exit' END AS tier "
             "FROM silver_vendor_kpi vk "
             "JOIN vendors v ON v.vendor_id = vk.vendor_id "
@@ -510,6 +512,10 @@ METRIC_PHRASES = {
     "show vendor otif": "vendor_otif",
 }
 
+# Sales-org, procurement, inventory, and MRP metrics share the same governed contract.
+METRICS.update(supply_chain.SC_METRICS)
+METRIC_PHRASES.update(supply_chain.SC_PHRASES)
+
 
 def connect(path=DB):
     Path(path).parent.mkdir(parents=True, exist_ok=True)
@@ -586,6 +592,7 @@ def initialize(c):
           GROUP BY dealer_id, channel, region, family;
         """
     )
+    c.executescript(supply_chain.DDL)
     c.commit()
 
 
@@ -921,21 +928,26 @@ def seed(path=DB, dealers=50, skus=200):
     c.executemany("INSERT OR IGNORE INTO products VALUES(?,?,?,?,?,?,?,?,?,?)", ps)
     c.commit()
     result = ingest(c, es)
+    result["supply_chain"] = supply_chain.seed_supply_chain(c, random.Random(7), LEAD_MIDPOINT_DAYS)
     c.close()
     return result
 
 
-def metric_sql(metric, dealer=None):
+def metric_sql(metric, dealer=None, dialect="sqlite"):
+    """Governed SQL for a metric. dialect='snowflake' swaps in Gold-backed statements for heavy metrics."""
     if metric not in METRICS:
         raise ValueError("Unknown governed metric")
     spec = METRICS[metric]
     sql = spec["sql"]
+    if dialect == "snowflake" and metric in supply_chain.SNOWFLAKE_OVERRIDES:
+        sql = supply_chain.SNOWFLAKE_OVERRIDES[metric]
     replacements = {
         "{where}": "WHERE dealer_id=?" if dealer else "",
         "{and_}": "AND" if dealer else "WHERE",
         "{where_sf}": "WHERE sf.dealer_id=?" if dealer else "",
         "{and_sf}": "AND" if dealer else "WHERE",
         "{where_sm}": "WHERE sm.dealer_id=?" if dealer else "",
+        "{and_ra}": "AND ra.dealer_id=?" if dealer else "",
         "{where_ter}": (
             "WHERE t.territory_id = (SELECT territory_id FROM dealers WHERE dealer_id=? LIMIT 1)"
             if dealer

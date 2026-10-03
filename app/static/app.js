@@ -170,6 +170,30 @@ function buildInsights(section, a) {
     const risk = a.stock_risk || [];
     if (risk.length) items.push({ title: 'Stock risk', body: `${risk.length} SKUs with sell-through ≥ 2× on-hand — open Supply for reorder + lead.`, tone: 'warn' });
   }
+  if (section === 'procure') {
+    const pd = a.po_past_due || [];
+    const worst = pd[0];
+    const pdTotal = pd.reduce((s, r) => s + (Number(r.past_due_value) || 0), 0);
+    if (worst) items.push({ title: 'Past-due exposure', body: `${money(pdTotal)} across ${pd.reduce((s, r) => s + (r.past_due_lines || 0), 0)} lines — ${worst.vendor} leads at ${money(worst.past_due_value)}.`, tone: 'warn' });
+    const below = (a.vendor_otif_detail || []).filter(v => v.status === 'Below target');
+    if (below[0]) items.push({ title: 'OTIF below contract', body: `${below.length} vendor(s) under target; ${below[0].vendor} at ${pct(below[0].otif_pct)} vs ${pct(below[0].target_pct)} target.`, tone: 'warn' });
+    const conc = (a.vendor_concentration || []).filter(v => v.risk_flag !== 'Ok')[0];
+    if (conc) items.push({ title: conc.risk_flag, body: `${conc.vendor}: ${pct(conc.share_pct)} of spend, ${conc.single_source_skus} single-sourced SKUs.`, tone: '' });
+    const fr = (a.freight_cost || [])[0];
+    if (fr) items.push({ title: 'Freight drag', body: `${fr.mode} from ${fr.country}: ${pct(fr.freight_pct)} of PO value (${fr.late_arrivals} late arrivals).`, tone: '' });
+  }
+  if (section === 'plan') {
+    const ex = a.mrp_exceptions || [];
+    const short = ex.filter(r => r.exception_code === 'shortage').reduce((s, r) => s + (r.skus || 0), 0);
+    const cancel = ex.filter(r => r.exception_code === 'cancel' || r.exception_code === 'de_expedite').reduce((s, r) => s + (r.skus || 0), 0);
+    if (ex.length) items.push({ title: 'MRP exceptions', body: `${short} shortage SKU-DCs, ${cancel} cancel/de-expedite messages — planners should clear shortages first.`, tone: short ? 'warn' : '' });
+    const dc = (a.dc_inventory_health || [])[0];
+    if (dc) items.push({ title: 'Tightest DC', body: `${dc.dc}: ${num(dc.available)} available of ${num(dc.on_hand)} on hand; ${dc.oversold_skus} oversold, ${dc.stockout_skus} stocked out.`, tone: dc.oversold_skus ? 'warn' : '' });
+    const fa = (a.forecast_accuracy || [])[0];
+    if (fa) items.push({ title: 'Forecast miss', body: `${fa.family}: WMAPE ${pct(fa.wmape_pct)}, bias ${pct(fa.bias_pct)} — ${Number(fa.bias_pct) > 0 ? 'over-forecasting' : 'under-forecasting'} demand.`, tone: '' });
+    const over = (a.bom_cost_rollup || []).filter(r => r.flag === 'Over standard');
+    if (over.length) items.push({ title: 'BOM over standard', body: `${over.length} SKUs roll up above standard cost; ${over[0].sku_id} at ${pct(over[0].material_pct_of_std)} of standard.`, tone: 'warn' });
+  }
   return items.slice(0, 4);
 }
 
@@ -209,6 +233,32 @@ const SECTIONS = {
       { title: 'Whitespace dealers', key: 'whitespace' },
       { title: 'Rep grades (A–D)', key: 'rep_grade' },
       { title: 'Rep leaderboard', key: 'rep_leaderboard' },
+      { title: 'Quota attainment by quarter', key: 'rep_attainment' },
+      { title: 'Rep dealer coverage', key: 'rep_coverage', chart: { label: 'rep', value: 'active_dealers' } },
+    ],
+  },
+  procure: {
+    blurb: 'Vendors · POs · OTIF from receipts · defects · concentration · freight',
+    panels: [
+      { title: 'Past-due PO lines by vendor', key: 'po_past_due', chart: { label: 'vendor', value: 'past_due_value', money: true } },
+      { title: 'Inbound pipeline by promised month', key: 'inbound_pipeline', chart: { label: 'month', value: 'on_order_value', money: true } },
+      { title: 'Vendor OTIF (from receipts) vs contract target', key: 'vendor_otif_detail', chart: { label: 'vendor', value: 'otif_pct', pct: true } },
+      { title: 'Receiving defects (ppm)', key: 'vendor_defects', chart: { label: 'vendor', value: 'defect_ppm' } },
+      { title: 'Spend concentration & single-source exposure', key: 'vendor_concentration', chart: { label: 'vendor', value: 'share_pct', pct: true } },
+      { title: 'Freight % of PO value', key: 'freight_cost' },
+    ],
+  },
+  plan: {
+    blurb: 'DC inventory · MRP exceptions · shortages · forecast accuracy · BOM · work orders',
+    panels: [
+      { title: 'DC inventory health (latest week)', key: 'dc_inventory_health', chart: { label: 'dc', value: 'available' } },
+      { title: 'Inventory trend (13 wk)', key: 'inventory_trend' },
+      { title: 'MRP exceptions (latest run)', key: 'mrp_exceptions' },
+      { title: 'Shortage / expedite SKUs', key: 'mrp_shortages' },
+      { title: 'Forecast accuracy by family', key: 'forecast_accuracy', chart: { label: 'family', value: 'wmape_pct', pct: true } },
+      { title: 'BOM material vs standard cost', key: 'bom_cost_rollup' },
+      { title: 'Component risk (long-lead / overseas)', key: 'component_risk' },
+      { title: 'Work orders by DC & status', key: 'work_order_status' },
     ],
   },
   supply: {
@@ -334,6 +384,27 @@ function metricInsight(name, rows) {
   if (name === 'by_channel' || name === 'by_family' || name === 'by_region') {
     return `Top slice: ${Object.values(r0)[0]} · ${money(r0.net_sales)} net.`;
   }
+  if (name === 'po_past_due' && r0.vendor) {
+    return `${r0.vendor}: ${r0.past_due_lines} past-due lines, ${money(r0.past_due_value)} exposed.`;
+  }
+  if (name === 'vendor_otif_detail' && r0.vendor) {
+    return `Lowest OTIF: ${r0.vendor} at ${pct(r0.otif_pct)} (target ${pct(r0.target_pct)}) — ${r0.status}.`;
+  }
+  if (name === 'mrp_exceptions' && r0.exception_code) {
+    return `Largest exception bucket: ${r0.exception_code} at ${r0.dc} (${r0.skus} SKUs).`;
+  }
+  if (name === 'mrp_shortages') {
+    return `${rows.length} shortage/expedite SKU-DCs from the latest MRP run; top net requirement ${num(r0.net_requirement)} units.`;
+  }
+  if (name === 'forecast_accuracy' && r0.family) {
+    return `Worst WMAPE: ${r0.family} at ${pct(r0.wmape_pct)} (bias ${pct(r0.bias_pct)}).`;
+  }
+  if (name === 'rep_attainment' && r0.rep) {
+    return `${r0.quarter}: ${r0.rep} at ${pct(r0.attainment_pct)} of quota.`;
+  }
+  if (name === 'dc_inventory_health' && r0.dc) {
+    return `Tightest DC: ${r0.dc} with ${num(r0.available)} available (${r0.oversold_skus} oversold SKUs).`;
+  }
   return `Returned ${rows.length} rows from governed metric \`${name}\`.`;
 }
 
@@ -349,6 +420,11 @@ function renderAsk(data) {
       vendor_scorecard: ['name', 'score'],
       rep_grade: ['rep', 'composite'],
       territory_perf: ['territory', 'net_sales'],
+      po_past_due: ['vendor', 'past_due_value'],
+      vendor_otif_detail: ['vendor', 'otif_pct'],
+      vendor_concentration: ['vendor', 'share_pct'],
+      forecast_accuracy: ['family', 'wmape_pct'],
+      inbound_pipeline: ['month', 'on_order_value'],
     };
     const ck = chartKeys[data.metric];
     let viz = '';
