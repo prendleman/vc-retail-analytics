@@ -570,15 +570,29 @@ let voiceAudio = null;
 let mediaRecorder = null;
 let voiceEnabled = false;
 
+/** Tiny silent WAV — used to unlock HTMLAudioElement under a user gesture before async work. */
+const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+
 function stopVoiceAudio() {
   if (voiceAudio) {
     try { voiceAudio.pause(); } catch (_) {}
-    voiceAudio = null;
   }
 }
 
+/** Call synchronously from click handlers before any await — browsers block play() after async work. */
+function primeVoicePlayback() {
+  if (!voiceAudio) voiceAudio = new Audio();
+  try {
+    voiceAudio.src = SILENT_WAV;
+    const p = voiceAudio.play();
+    if (p && typeof p.then === 'function') p.then(() => { try { voiceAudio.pause(); voiceAudio.currentTime = 0; } catch (_) {} }).catch(() => {});
+  } catch (_) {}
+}
+
 async function playSpoken(text) {
-  if (!text || !voiceEnabled) return;
+  if (!text) return;
+  if (!voiceEnabled) throw new Error('Voice is not configured on this host');
+  if (!voiceAudio) voiceAudio = new Audio();
   stopVoiceAudio();
   const res = await fetch('/api/tts', {
     method: 'POST',
@@ -590,26 +604,42 @@ async function playSpoken(text) {
     throw new Error(err.error || 'TTS failed');
   }
   const blob = await res.blob();
-  voiceAudio = new Audio(URL.createObjectURL(blob));
-  await voiceAudio.play();
+  const url = URL.createObjectURL(blob);
+  voiceAudio.src = url;
+  try {
+    await voiceAudio.play();
+  } catch (e) {
+    // Gesture lost after await — offer explicit replay via Speak.
+    throw new Error('Tap Speak to hear the brief (browser blocked autoplay after loading).');
+  }
 }
 
-async function preferSnowflakeForVoice() {
+/** Prefer Snowflake for voice without reloading Overview/Analytics (that race ate the click gesture). */
+async function softPreferSnowflake() {
   const health = await api('/api/health');
   if ((health.backends_available || []).includes('snowflake') && health.backend !== 'snowflake') {
     try {
-      await switchBackend('snowflake');
-    } catch (_) { /* stay on current */ }
+      const res = await api('/api/backend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ backend: 'snowflake' }),
+      });
+      analyticsCache = null;
+      renderBackend({ ...health, backend: 'snowflake', data_scale: res.data_scale || health.data_scale });
+      const badge = document.getElementById('backend');
+      if (badge && res.warm_ms != null) badge.title = `${res.data_scale} — warm-up ${Math.round(res.warm_ms)} ms`;
+    } catch (_) { /* server voice endpoints still prefer Snowflake */ }
   }
 }
 
 async function runPortfolioBrief() {
   const btn = document.getElementById('brief-me');
   const status = document.getElementById('brief-status');
+  primeVoicePlayback();
   if (btn) btn.disabled = true;
   if (status) status.textContent = 'Building warehouse brief…';
   try {
-    await preferSnowflakeForVoice();
+    await softPreferSnowflake();
     const data = await api('/api/voice-brief', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -617,12 +647,19 @@ async function runPortfolioBrief() {
     });
     lastSpoken = data.spoken || '';
     const speakBtn = document.getElementById('speak-answer');
-    if (speakBtn) speakBtn.disabled = !lastSpoken || !voiceEnabled;
+    if (speakBtn) speakBtn.disabled = !lastSpoken;
     if (status) {
       status.textContent = `${(data.backend || '').toUpperCase()} · ${(data.spoken || '').slice(0, 120)}${(data.spoken || '').length > 120 ? '…' : ''}`;
     }
-    if (lastSpoken && voiceEnabled) await playSpoken(lastSpoken);
-    else if (!voiceEnabled && status) status.textContent = (data.spoken || 'Brief ready (voice offline).');
+    if (lastSpoken && voiceEnabled) {
+      try {
+        await playSpoken(lastSpoken);
+      } catch (e) {
+        if (status) status.textContent = `${status.textContent} — ${e.message}`;
+      }
+    } else if (!voiceEnabled && status) {
+      status.textContent = data.spoken || 'Brief ready (voice offline).';
+    }
   } catch (e) {
     if (status) status.textContent = e.message;
   } finally {
@@ -634,7 +671,7 @@ async function voiceAsk(question) {
   const out = document.getElementById('out-proposed');
   out.classList.remove('out-rich');
   out.textContent = 'Asking warehouse…';
-  await preferSnowflakeForVoice();
+  await softPreferSnowflake();
   const data = await api('/api/voice-ask', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -642,7 +679,7 @@ async function voiceAsk(question) {
   });
   lastSpoken = data.spoken || '';
   const speakBtn = document.getElementById('speak-answer');
-  if (speakBtn) speakBtn.disabled = !lastSpoken || !voiceEnabled;
+  if (speakBtn) speakBtn.disabled = !lastSpoken;
   out.innerHTML = renderAsk(data);
   out.classList.add('out-rich');
   if (lastSpoken && voiceEnabled) {
@@ -740,6 +777,7 @@ async function boot() {
   document.getElementById('ask-proposed').onclick = async () => {
     const q = document.getElementById('q-proposed').value.trim();
     if (!q) return;
+    primeVoicePlayback();
     try {
       await voiceAsk(q);
     } catch (e) {
@@ -747,8 +785,12 @@ async function boot() {
     }
   };
   document.getElementById('escalate').onclick = escalate;
-  document.getElementById('mic-ask').onclick = () => toggleMic().catch(e => alert(e.message));
+  document.getElementById('mic-ask').onclick = () => {
+    primeVoicePlayback();
+    toggleMic().catch(e => alert(e.message));
+  };
   document.getElementById('speak-answer').onclick = () => {
+    primeVoicePlayback();
     if (lastSpoken) playSpoken(lastSpoken).catch(e => alert(e.message));
   };
   document.getElementById('catalog-q').addEventListener('change', loadCatalog);
@@ -762,7 +804,17 @@ async function boot() {
   const health = await api('/api/health');
   voiceEnabled = !!health.voice;
   const vb = document.getElementById('voice-badge');
-  if (vb) { vb.hidden = !voiceEnabled; vb.textContent = voiceEnabled ? 'VOICE' : ''; }
+  if (vb) {
+    vb.hidden = !voiceEnabled;
+    vb.textContent = voiceEnabled ? 'VOICE' : '';
+    vb.title = 'Jump to Overview and run Brief me';
+    vb.style.cursor = voiceEnabled ? 'pointer' : '';
+    vb.onclick = () => {
+      if (!voiceEnabled) return;
+      showTab('overview');
+      runPortfolioBrief().catch(e => alert(e.message));
+    };
+  }
   const vs = document.getElementById('voice-status');
   if (vs) {
     vs.textContent = voiceEnabled

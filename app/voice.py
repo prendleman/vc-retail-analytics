@@ -21,7 +21,7 @@ DEFAULT_VOICE_ID = "EXAVITQu4vr4xnSDxMaL"
 STT_URL = "https://api.elevenlabs.io/v1/speech-to-text"
 TTS_URL_TMPL = "https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
 VOICES_URL = "https://api.elevenlabs.io/v1/voices"
-TTS_MAX_CHARS = 500
+TTS_MAX_CHARS = 700
 CORTEX_ROW_CAP = 12
 
 
