@@ -9,19 +9,41 @@ async function api(path, opts) {
   return data;
 }
 
-function money(n) {
-  return (Number(n) || 0).toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+/** Snowflake returns NUMBER/DECIMAL as strings; coerce those before formatting. */
+function asNum(n) {
+  if (n == null || n === '') return null;
+  if (typeof n === 'number') return Number.isFinite(n) ? n : null;
+  if (typeof n === 'bigint') return Number(n);
+  if (typeof n === 'string') {
+    const t = n.trim().replace(/,/g, '');
+    if (!t || /[^\d.eE+-]/.test(t)) return null;
+    const x = Number(t);
+    return Number.isFinite(x) ? x : null;
+  }
+  return null;
+}
+
+function money(n, opts = {}) {
+  const x = asNum(n);
+  if (x == null) return '—';
+  const abs = Math.abs(x);
+  if (opts.compact !== false && abs >= 1e6) {
+    const scale = abs >= 1e9 ? [1e9, 'B'] : [1e6, 'M'];
+    const v = x / scale[0];
+    return `$${v.toLocaleString(undefined, { maximumFractionDigits: 1, minimumFractionDigits: 1 })}${scale[1]}`;
+  }
+  return x.toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 }
 
 function num(n, d = 0) {
-  const x = Number(n);
-  if (!Number.isFinite(x)) return '—';
+  const x = asNum(n);
+  if (x == null) return '—';
   return x.toLocaleString(undefined, { maximumFractionDigits: d });
 }
 
 function pct(n) {
-  const x = Number(n);
-  if (!Number.isFinite(x)) return '—';
+  const x = asNum(n);
+  if (x == null) return '—';
   return `${x.toFixed(1)}%`;
 }
 
@@ -29,15 +51,35 @@ function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+function humanize(key) {
+  return String(key || '')
+    .replace(/_/g, ' ')
+    .replace(/\bpct\b/gi, '%')
+    .replace(/\bids?\b/gi, (m) => m.toLowerCase() === 'ids' ? 'IDs' : 'ID')
+    .replace(/\bskus?\b/gi, (m) => m.toLowerCase().endsWith('s') ? 'SKUs' : 'SKU')
+    .replace(/\bdcs?\b/gi, (m) => m.toLowerCase().endsWith('s') ? 'DCs' : 'DC')
+    .replace(/\botif\b/gi, 'OTIF')
+    .replace(/\bmrp\b/gi, 'MRP')
+    .replace(/\byoy\b/gi, 'YoY')
+    .replace(/\bwmap[e]?\b/gi, 'WMAPE')
+    .replace(/\bppm\b/gi, 'ppm')
+    .replace(/\b\w/g, (c, i, s) => (i === 0 || s[i - 1] === ' ') ? c.toUpperCase() : c);
+}
+
+const MONEY_KEYS = /net_sales|margin$|quota|past_due_value|on_order_value|open_value|spend|freight(?!_pct)|list_price|std_cost|material_cost|unit_cost|po_value|book_value|available_value/;
+const RATIO_KEYS = /realization|seasonal_index|peak_index|vs_peer|mix_contribution/;
+const PCT_KEYS = /_pct$|attainment|otif|yoy|wmape|capacity/;
+
 function fmtCell(key, val) {
   const k = key.toLowerCase();
-  if (val == null) return '—';
-  if (/net_sales|margin$|quarterly_quota/.test(k) && typeof val === 'number') return money(val);
-  if (/pct|realization|index|vs_peer|attainment|composite|capacity_pct|otif|score|yoy/.test(k) && typeof val === 'number') {
-    if (k.includes('realization') || k.includes('index') || k.includes('vs_peer') || k.includes('peak_index')) return num(val, 2);
-    return pct(val);
-  }
-  if (typeof val === 'number' && !Number.isInteger(val)) return num(val, 1);
+  if (val == null || val === '') return '—';
+  const x = asNum(val);
+  if (x != null && MONEY_KEYS.test(k) && !/_pct|_ppm|_id$|_sk$/.test(k)) return money(x, { compact: Math.abs(x) >= 1e7 });
+  if (x != null && RATIO_KEYS.test(k)) return num(x, 2);
+  if (x != null && PCT_KEYS.test(k) && !RATIO_KEYS.test(k)) return pct(x);
+  if (x != null && /score|composite|grade_score/.test(k)) return num(x, 1);
+  if (x != null && Number.isInteger(x)) return num(x, 0);
+  if (x != null) return num(x, Math.abs(x) < 10 ? 2 : 1);
   return esc(val);
 }
 
@@ -45,7 +87,7 @@ function htmlTable(rows, limit = 25) {
   if (!rows || !rows.length) return '<p class="fine">(empty)</p>';
   const slice = rows.slice(0, limit);
   const keys = Object.keys(slice[0]);
-  const head = keys.map(k => `<th>${esc(k)}</th>`).join('');
+  const head = keys.map(k => `<th>${esc(humanize(k))}</th>`).join('');
   const body = slice.map(r => {
     const cells = keys.map(k => {
       let cls = '';
@@ -356,14 +398,14 @@ async function loadOverview() {
   renderBackend(health);
   const marginPct = analytics?.summary?.margin_pct;
   document.getElementById('summary').innerHTML = [
-    ['Dealers', summary.dealers],
-    ['Active SKUs', summary.skus],
+    ['Accounts', num(summary.dealers)],
+    ['Active SKUs', num(summary.skus)],
     ['Units sold', num(summary.units_sold)],
     ['Net sales', money(summary.net_sales)],
-    ['Margin', money(summary.margin)],
+    ['Gross margin', money(summary.margin)],
     ['Margin %', marginPct != null ? pct(marginPct) : '—'],
     ['On hand', num(summary.on_hand)],
-    ['Quarantined', summary.quarantined],
+    ['Quarantined', num(summary.quarantined)],
   ].map(([k, v]) => `<div><span>${k}</span><strong>${v}</strong></div>`).join('');
 
   const ch = analytics?.by_channel || [];

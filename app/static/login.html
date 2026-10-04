@@ -4,21 +4,37 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Login · VC Retail Analytics</title>
-  <link rel="stylesheet" href="/style.css?v=20261003b" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css?v=20261003c" />
 </head>
-<body class="login">
-  <form id="form" class="card">
-    <h1>Demo login</h1>
-    <p class="fine">Password: <code>vc-demo</code>. Prefer <strong>operator</strong> for full Field/Supply. Synthetic accounts only.</p>
-    <label>Username
-      <select id="username"></select>
-    </label>
-    <label>Password
-      <input id="password" type="password" value="vc-demo" autocomplete="off" />
-    </label>
-    <button type="submit">Continue</button>
-    <p id="err" class="err" hidden></p>
-  </form>
+<body class="login login-branded">
+  <div class="login-shell">
+    <aside class="login-visual" aria-hidden="true">
+      <img src="/vc-still.jpg" alt="" />
+      <div class="login-veil"></div>
+      <div class="login-aside-copy">
+        <span class="mark">VC</span>
+        <p class="eyebrow">Designer lighting analytics</p>
+        <p class="login-tag">Synthetic dealer network · governed metrics · not a production system</p>
+      </div>
+    </aside>
+    <form id="form" class="card">
+      <p class="eyebrow">Demo access</p>
+      <h1>Sign in</h1>
+      <p class="fine">Password: <code>vc-demo</code>. Prefer <strong>operator</strong> for full Field / Supply. Synthetic accounts only.</p>
+      <label>Username
+        <select id="username"></select>
+      </label>
+      <label>Password
+        <input id="password" type="password" value="vc-demo" autocomplete="off" />
+      </label>
+      <button type="submit">Continue to demo</button>
+      <p id="err" class="err" hidden></p>
+      <p class="fine back-link"><a href="/">← Back to overview</a></p>
+    </form>
+  </div>
   <script>
     async function boot() {
       const s = await fetch('/api/session').then(r => r.json());

@@ -4,12 +4,19 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>App · VC Retail Analytics</title>
-  <link rel="stylesheet" href="/style.css?v=20261003b" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css?v=20261003c" />
 </head>
 <body class="app">
   <header class="top">
-    <div>
-      <strong>VC Retail Analytics</strong>
+    <div class="brand">
+      <span class="mark" aria-hidden="true">VC</span>
+      <div class="brand-text">
+        <strong>VC Retail Analytics</strong>
+        <span class="brand-sub">Designer lighting · synthetic scale</span>
+      </div>
       <span id="badge" class="badge">SYNTHETIC</span>
       <span id="backend" class="badge muted"></span>
     </div>
@@ -31,13 +38,16 @@
   </nav>
   <main>
     <section id="overview" class="tab">
-      <h2>Portfolio overview</h2>
+      <p class="eyebrow">Portfolio</p>
+      <h2>Lighting retail at a glance</h2>
+      <p class="fine lede-app">Session-scoped KPIs from governed warehouse metrics — Consumer, Trade, and Contract sell-through across the synthetic dealer network.</p>
       <div id="summary" class="stats"></div>
       <pre id="portfolio" class="table"></pre>
     </section>
     <section id="analytics" class="tab" hidden>
+      <p class="eyebrow">Warehouse metrics</p>
       <h2>Retail analytics</h2>
-      <p class="fine">Insight callouts + charts + approved warehouse metrics. Sections: Core · Margin · Season · Field · Supply.</p>
+      <p class="fine">Insight callouts + charts + approved metric queries. Sections: Core · Margin · Season · Field · Supply · Procurement · Planning.</p>
       <div class="subnav" id="analytics-subnav">
         <button type="button" data-section="core" class="active">Core</button>
         <button type="button" data-section="margin">Margin</button>
@@ -50,7 +60,8 @@
       <div id="analytics-panels"></div>
     </section>
     <section id="assistant" class="tab" hidden>
-      <h2>Illustrative support vs analytics workflow</h2>
+      <p class="eyebrow">Workflow contrast</p>
+      <h2>Illustrative support vs analytics</h2>
       <p class="fine">Left: illustrative FAQ / escalate pattern. Right: deterministic assistant that routes exact prompts to approved metric queries (not an LLM). Illustrative workflows, not an assessment of any client's internal systems.</p>
       <div class="split">
         <div>
@@ -102,11 +113,13 @@
       </details>
     </section>
     <section id="catalog" class="tab" hidden>
+      <p class="eyebrow">Product language</p>
       <h2>Synthetic catalog</h2>
+      <p class="fine">Ceiling · Wall · Lamps · Outdoor · Fans · Alabaster · Cordless — search finishes and families.</p>
       <input id="catalog-q" placeholder="Search family, designer, finish…" />
       <pre id="catalog-out" class="table"></pre>
     </section>
   </main>
-  <script src="/app.js?v=20261003b"></script>
+  <script src="/app.js?v=20261003c"></script>
 </body>
 </html>
