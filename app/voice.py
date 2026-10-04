@@ -95,6 +95,44 @@ def _num(n: Any) -> str:
     return f"{x:,.1f}"
 
 
+def speakable_portfolio_brief(summary: dict, channels: list[dict], stock_risk: list[dict] | None = None) -> str:
+    """~20s Overview brief from live summary + channel mix (+ optional stock risk)."""
+    dealers = summary.get("dealers")
+    skus = summary.get("skus")
+    units = summary.get("units_sold")
+    net = summary.get("net_sales")
+    margin = summary.get("margin")
+    try:
+        margin_pct = 100.0 * float(margin) / float(net) if net not in (None, 0, "0") else None
+    except (TypeError, ValueError, ZeroDivisionError):
+        margin_pct = None
+    parts = [
+        f"Portfolio brief: {_num(dealers)} accounts, {_num(skus)} active SKUs, "
+        f"{_num(units)} units sold for {_money(net)} net sales"
+    ]
+    if margin_pct is not None:
+        parts[0] += f" at {_pct(margin_pct)} gross margin"
+    parts[0] += "."
+    if channels:
+        ordered = sorted(channels, key=lambda r: float(r.get("net_sales") or 0), reverse=True)
+        mix = "; ".join(
+            f"{r.get('channel')} {_money(r.get('net_sales'))}"
+            + (f", margin {_pct(r.get('margin_pct'))}" if r.get("margin_pct") is not None else "")
+            for r in ordered[:3]
+        )
+        parts.append(f"Channel mix: {mix}.")
+    if stock_risk:
+        top = stock_risk[0]
+        label = top.get("sku_id") or top.get("family") or top.get("name") or "top SKU"
+        parts.append(
+            f"Stock risk flag: {label} with sell-through pressure "
+            f"({_num(top.get('units_sold') or top.get('skus') or len(stock_risk))} in the risk set)."
+        )
+    else:
+        parts.append("No stock-risk SKUs in the top slice for this scope.")
+    return " ".join(parts)
+
+
 def speakable_metric(name: str, rows: list[dict], description: str = "") -> str:
     """1–3 spoken sentences from live metric rows (warehouse numbers, not canned copy)."""
     if not rows:

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import random
+import re
 import sqlite3
 import time
 import uuid
@@ -966,6 +967,114 @@ def interpret_metric(question: str) -> str:
     if q not in METRIC_PHRASES:
         raise ValueError("Offline metrics support: " + ", ".join(METRIC_PHRASES))
     return METRIC_PHRASES[q]
+
+
+def _normalize_spoken(question: str) -> str:
+    q = (question or "").strip().lower()
+    q = re.sub(r"[?.!,;:\"']+", " ", q)
+    q = re.sub(r"\s+", " ", q).strip()
+    # Drop filler openers common in STT
+    for prefix in (
+        "hey ",
+        "please ",
+        "can you ",
+        "could you ",
+        "would you ",
+        "i want to ",
+        "i need to ",
+        "tell me ",
+        "give me ",
+        "what's ",
+        "whats ",
+        "what is ",
+        "what are ",
+        "show me ",
+        "show us ",
+        "show the ",
+    ):
+        if q.startswith(prefix):
+            q = q[len(prefix) :]
+    return q.strip()
+
+
+# Spoken / natural aliases → governed metric (voice path only; typed ask stays exact).
+METRIC_ALIASES = [
+    (re.compile(r"\b(margin|margins)\b.*\b(channel|channels)\b|\b(channel|channels)\b.*\b(margin|margins)\b|\bmargin percent\b|\bgross margin\b|\bmargin %\b"), "margin_pct"),
+    (re.compile(r"\b(sales|revenue|sell[- ]?through)\b.*\bchannel|\bchannel\b.*\b(sales|revenue)\b|\bsales by channel\b"), "by_channel"),
+    (re.compile(r"\b(sales|revenue)\b.*\bfamily|\bfamily\b.*\b(sales|revenue)\b|\bsales by family\b"), "by_family"),
+    (re.compile(r"\b(sales|revenue)\b.*\bregion|\bregion\b.*\b(sales|revenue)\b|\bsales by region\b"), "by_region"),
+    (re.compile(r"\bportfolio\b|\bdealer (book|performance|rank)"), "portfolio"),
+    (re.compile(r"\bstock risk\b|\blow stock\b|\bsell[- ]?through risk\b"), "stock_risk"),
+    (re.compile(r"\bprice realization\b|\brealization (vs|versus) list\b|\bdiscount depth\b"), "price_realization"),
+    (re.compile(r"\blow[- ]margin\b|\bthin margin sku"), "low_margin_skus"),
+    (re.compile(r"\bmargin waterfall\b|\bmix contribution\b"), "margin_waterfall"),
+    (re.compile(r"\breorder\b|\breplenish"), "reorder_candidates"),
+    (re.compile(r"\bdays of cover\b|\bcover days\b|\bweeks of supply\b"), "days_of_cover"),
+    (re.compile(r"\bseasonality\b|\bseasonal index\b|\bpeak season\b"), "seasonal_index"),
+    (re.compile(r"\bunits by month\b|\bmonthly units\b|\bunit trend\b"), "units_by_month"),
+    (re.compile(r"\byoy\b|\byear over year\b"), "yoy_family"),
+    (re.compile(r"\blead (time )?vs peak\b|\blead versus peak\b|\bbuy ahead\b"), "lead_vs_peak"),
+    (re.compile(r"\bterritory performance\b|\bterritories\b"), "territory_perf"),
+    (re.compile(r"\bterritory coverage\b|\bcoverage vs capacity\b"), "territory_coverage"),
+    (re.compile(r"\bwhitespace\b|\bcoverage gap\b"), "whitespace"),
+    (re.compile(r"\bplan vs season\b|\bplan versus season\b"), "plan_vs_season"),
+    (re.compile(r"\brep leaderboard\b|\btop reps?\b|\brep ranking\b"), "rep_leaderboard"),
+    (re.compile(r"\brep grades?\b|\bgrade (the )?reps?\b"), "rep_grade"),
+    (re.compile(r"\brep attainment\b|\bquota attainment\b|\battainment\b"), "rep_attainment"),
+    (re.compile(r"\brep coverage\b|\brep dealer coverage\b"), "rep_coverage"),
+    (re.compile(r"\bvendor scorecard\b|\bsupplier scorecard\b|\bprefer watch exit\b"), "vendor_scorecard"),
+    (re.compile(r"\bvendor otif detail\b|\botif detail\b|\botif vs (contract|target)\b"), "vendor_otif_detail"),
+    (re.compile(r"\bvendor otif\b|\botif\b"), "vendor_otif"),
+    (re.compile(r"\bpast[- ]due\b|\bpast due po"), "po_past_due"),
+    (re.compile(r"\binbound pipeline\b|\bon[- ]order pipeline\b"), "inbound_pipeline"),
+    (re.compile(r"\bvendor defects?\b|\bdefect ppm\b"), "vendor_defects"),
+    (re.compile(r"\bconcentration\b|\bsingle[- ]source\b"), "vendor_concentration"),
+    (re.compile(r"\bfreight\b"), "freight_cost"),
+    (re.compile(r"\bdc inventory\b|\binventory health\b|\bdistribution center\b"), "dc_inventory_health"),
+    (re.compile(r"\binventory trend\b"), "inventory_trend"),
+    (re.compile(r"\bmrp exceptions?\b|\bmrp\b"), "mrp_exceptions"),
+    (re.compile(r"\bshortages?\b|\bexpedite\b"), "mrp_shortages"),
+    (re.compile(r"\bforecast accuracy\b|\bwmape\b|\bforecast bias\b"), "forecast_accuracy"),
+    (re.compile(r"\bbom cost\b|\bmaterial cost\b|\bstandard cost\b"), "bom_cost_rollup"),
+    (re.compile(r"\bcomponent risk\b|\blong[- ]lead component"), "component_risk"),
+    (re.compile(r"\bwork orders?\b"), "work_order_status"),
+    (re.compile(r"\bdata quality\b|\bquarantine\b"), "quality"),
+]
+
+
+def resolve_metric(question: str) -> str:
+    """Voice-friendly metric resolver: exact phrase, then aliases, then token overlap.
+
+    Typed `/api/ask` keeps interpret_metric (exact). Voice path uses this so STT variants
+    stay on governed metrics before Cortex.
+    """
+    raw = (question or "").strip().lower()
+    if raw in METRIC_PHRASES:
+        return METRIC_PHRASES[raw]
+    q = _normalize_spoken(question)
+    if q in METRIC_PHRASES:
+        return METRIC_PHRASES[q]
+    # Substring: phrase contained in spoken text (e.g. "please show margin percent now")
+    for phrase, name in METRIC_PHRASES.items():
+        if phrase in q or phrase in raw:
+            return name
+    for pattern, name in METRIC_ALIASES:
+        if pattern.search(q) or pattern.search(raw):
+            return name
+    # Token overlap against canonical phrases (require strong hit)
+    stop = {"show", "me", "the", "a", "an", "our", "my", "about", "for", "of", "to", "and", "or", "vs", "versus"}
+    q_tokens = {t for t in re.findall(r"[a-z0-9%]+", q) if t not in stop and len(t) > 1}
+    best_name, best_score = None, 0.0
+    for phrase, name in METRIC_PHRASES.items():
+        p_tokens = {t for t in phrase.split() if t not in stop}
+        if not p_tokens:
+            continue
+        hit = len(q_tokens & p_tokens) / len(p_tokens)
+        if hit > best_score:
+            best_score, best_name = hit, name
+    if best_name and best_score >= 0.75:
+        return best_name
+    raise ValueError("Offline metrics support: " + ", ".join(METRIC_PHRASES))
 
 
 def match_faq(question: str):

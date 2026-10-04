@@ -25,6 +25,7 @@ from app.core import (
     metric_sql,
     now,
     product_lookup,
+    resolve_metric,
     seed,
 )
 
@@ -463,7 +464,7 @@ class Handler(BaseHTTPRequestHandler):
 
             if "application/json" not in ctype:
                 raise ValueError("JSON required")
-            max_body = 32_000 if path in ("/api/tts", "/api/voice-ask") else 8192
+            max_body = 32_000 if path in ("/api/tts", "/api/voice-ask", "/api/voice-brief") else 8192
             if size > max_body:
                 raise ValueError("Request too large")
             body = json.loads(self.rfile.read(size) or b"{}")
@@ -481,13 +482,10 @@ class Handler(BaseHTTPRequestHandler):
                 question = (body.get("question") or "").strip()
                 if not question:
                     raise ValueError("question required")
-                # STT often appends punctuation; closed metric router is exact-match on lowercase text.
-                q_metric = re.sub(r"[?.!,;:]+$", "", question.strip().lower()).strip()
                 dealer = self.scope({"dealer": [body.get("dealer", "")]})
                 s = self.prefer_snowflake_store()
-                # Prefer exact metric phrases (same governance as /api/ask)
                 try:
-                    name = interpret_metric(q_metric)
+                    name = resolve_metric(question)
                 except ValueError as err:
                     if s.backend == "snowflake" and voice_mod.cortex_configured():
                         try:
@@ -503,7 +501,7 @@ class Handler(BaseHTTPRequestHandler):
                                         "backend": s.backend,
                                         "source": "cortex",
                                         "spoken": (gen.get("text") or str(err))[:480],
-                                        "trace": ["voice_ask", "cortex_no_sql", "clarify"],
+                                        "trace": ["voice_ask", "fuzzy_miss", "cortex_no_sql", "clarify"],
                                     },
                                     400,
                                 )
@@ -523,6 +521,7 @@ class Handler(BaseHTTPRequestHandler):
                                     "trace": [
                                         "voice_ask",
                                         "prefer_snowflake",
+                                        "fuzzy_miss",
                                         "cortex_analyst",
                                         "execute_select",
                                         "speakable_brief",
@@ -539,7 +538,7 @@ class Handler(BaseHTTPRequestHandler):
                                     "backend": s.backend,
                                     "source": "metric",
                                     "spoken": str(err)[:480],
-                                    "trace": ["voice_ask", "metric_miss", "cortex_failed"],
+                                    "trace": ["voice_ask", "fuzzy_miss", "cortex_failed"],
                                 },
                                 400,
                             )
@@ -551,7 +550,7 @@ class Handler(BaseHTTPRequestHandler):
                             "backend": s.backend,
                             "source": "metric",
                             "spoken": str(err)[:480],
-                            "trace": ["voice_ask", "resolve_verified_question", "clarify"],
+                            "trace": ["voice_ask", "fuzzy_miss", "clarify"],
                         },
                         400,
                     )
@@ -574,8 +573,50 @@ class Handler(BaseHTTPRequestHandler):
                         "trace": [
                             "voice_ask",
                             "prefer_snowflake",
-                            "resolve_verified_question",
+                            "resolve_metric",
                             "execute_read_only_metric",
+                            "speakable_brief",
+                        ],
+                    }
+                )
+            if path == "/api/voice-brief":
+                if not self.session() and not self.server.dealer:
+                    raise PermissionError("Login required")
+                dealer = self.scope({"dealer": [body.get("dealer", "")]})
+                s = self.prefer_snowflake_store()
+                where = " WHERE dealer_id=?" if dealer else ""
+                params = [dealer] if dealer else []
+                summary = s.rows(
+                    "SELECT COUNT(DISTINCT sku_id) AS skus, COALESCE(SUM(units_sold),0) AS units_sold, "
+                    "COALESCE(SUM(net_sales_cents),0)/100.0 AS net_sales, "
+                    "COALESCE(SUM(margin_cents),0)/100.0 AS margin, "
+                    "COALESCE(SUM(on_hand),0) AS on_hand FROM silver_facts" + where,
+                    params,
+                )[0]
+                summary["dealers"] = s.rows("SELECT COUNT(*) AS n FROM dealers" + where, params)[0]["n"]
+                channels = s.metric_rows("by_channel", dealer)
+                try:
+                    stock_risk = s.metric_rows("stock_risk", dealer)[:5]
+                except Exception:  # noqa: BLE001
+                    stock_risk = []
+                spoken = voice_mod.speakable_portfolio_brief(summary, channels, stock_risk)
+                s.audit(dealer, "voice_brief", len(channels))
+                return self.send(
+                    {
+                        "mode": "voice portfolio brief",
+                        "kind": "brief",
+                        "spoken": spoken,
+                        "summary": summary,
+                        "by_channel": channels,
+                        "stock_risk": stock_risk,
+                        "backend": s.backend,
+                        "source": "brief",
+                        "trace": [
+                            "voice_brief",
+                            "prefer_snowflake",
+                            "summary",
+                            "by_channel",
+                            "stock_risk",
                             "speakable_brief",
                         ],
                     }

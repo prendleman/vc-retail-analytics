@@ -603,6 +603,33 @@ async function preferSnowflakeForVoice() {
   }
 }
 
+async function runPortfolioBrief() {
+  const btn = document.getElementById('brief-me');
+  const status = document.getElementById('brief-status');
+  if (btn) btn.disabled = true;
+  if (status) status.textContent = 'Building warehouse brief…';
+  try {
+    await preferSnowflakeForVoice();
+    const data = await api('/api/voice-brief', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    lastSpoken = data.spoken || '';
+    const speakBtn = document.getElementById('speak-answer');
+    if (speakBtn) speakBtn.disabled = !lastSpoken || !voiceEnabled;
+    if (status) {
+      status.textContent = `${(data.backend || '').toUpperCase()} · ${(data.spoken || '').slice(0, 120)}${(data.spoken || '').length > 120 ? '…' : ''}`;
+    }
+    if (lastSpoken && voiceEnabled) await playSpoken(lastSpoken);
+    else if (!voiceEnabled && status) status.textContent = (data.spoken || 'Brief ready (voice offline).');
+  } catch (e) {
+    if (status) status.textContent = e.message;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 async function voiceAsk(question) {
   const out = document.getElementById('out-proposed');
   out.classList.remove('out-rich');
@@ -746,6 +773,11 @@ async function boot() {
   }
   document.getElementById('mic-ask').disabled = !voiceEnabled;
   document.getElementById('speak-answer').disabled = true;
+  const briefBtn = document.getElementById('brief-me');
+  if (briefBtn) {
+    briefBtn.disabled = false;
+    briefBtn.onclick = () => runPortfolioBrief().catch(e => alert(e.message));
+  }
   await loadOverview();
 }
 
