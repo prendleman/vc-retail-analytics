@@ -352,38 +352,46 @@ let currentBackend = 'local';
 
 function renderBackend(health) {
   currentBackend = health.backend;
-  const badge = document.getElementById('backend');
-  badge.textContent = health.backend.toUpperCase();
-  badge.title = health.data_scale || '';
   const sw = document.getElementById('backend-switch');
   const avail = health.backends_available || [health.backend];
   sw.hidden = avail.length < 2;
   sw.querySelectorAll('button').forEach(b => {
     b.classList.toggle('active', b.dataset.backend === health.backend);
     b.hidden = !avail.includes(b.dataset.backend);
+    b.disabled = false;
   });
+  const sfBtn = document.getElementById('btn-snowflake');
+  if (sfBtn) {
+    sfBtn.title = (health.data_scale && health.backend === 'snowflake')
+      ? health.data_scale
+      : 'Switch to Snowflake 10 TB public-scale warehouse';
+  }
 }
 
 async function switchBackend(target) {
   const sw = document.getElementById('backend-switch');
   const buttons = sw.querySelectorAll('button');
   buttons.forEach(b => { b.disabled = true; });
-  const badge = document.getElementById('backend');
-  const prev = badge.textContent;
-  badge.textContent = target === 'snowflake' ? 'CONNECTING…' : 'SWITCHING…';
+  const sfBtn = document.getElementById('btn-snowflake');
+  const prevLabel = sfBtn && target === 'snowflake' ? sfBtn.textContent : null;
+  if (sfBtn && target === 'snowflake') sfBtn.textContent = 'Connecting…';
   try {
     const res = await api('/api/backend', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ backend: target }) });
     analyticsCache = null;
+    renderBackend({ backend: target, backends_available: res.backends_available || ['local', 'snowflake'], data_scale: res.data_scale });
     await loadOverview();
     const tab = document.querySelector('nav button.active')?.dataset.tab;
     if (tab === 'analytics') await loadAnalytics();
     if (tab === 'catalog') await loadCatalog();
-    if (res.warm_ms != null) badge.title = `${res.data_scale} — warm-up ${Math.round(res.warm_ms)} ms`;
+    if (sfBtn && res.warm_ms != null) sfBtn.title = `${res.data_scale} — warm-up ${Math.round(res.warm_ms)} ms`;
   } catch (err) {
-    badge.textContent = prev;
-    document.getElementById('summary').insertAdjacentHTML('beforebegin', `<p class="err">${esc(err.message)}</p>`);
+    document.getElementById('summary')?.insertAdjacentHTML('beforebegin', `<p class="err">${esc(err.message)}</p>`);
+    throw err;
   } finally {
     buttons.forEach(b => { b.disabled = false; });
+    if (sfBtn && prevLabel) sfBtn.textContent = 'Snowflake';
+    const health = await api('/api/health').catch(() => null);
+    if (health) renderBackend(health);
   }
 }
 
@@ -614,32 +622,63 @@ async function playSpoken(text) {
   }
 }
 
-/** Prefer Snowflake for voice without reloading Overview/Analytics (that race ate the click gesture). */
-async function softPreferSnowflake() {
+/** Voice runs only on Snowflake — switch session + refresh KPIs without eating the click gesture for audio. */
+async function requireSnowflakeForVoice() {
   const health = await api('/api/health');
-  if ((health.backends_available || []).includes('snowflake') && health.backend !== 'snowflake') {
+  if (!(health.backends_available || []).includes('snowflake')) {
+    throw new Error('Snowflake is not available on this host — voice needs the warehouse scale.');
+  }
+  if (health.backend !== 'snowflake') {
+    const res = await api('/api/backend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ backend: 'snowflake' }),
+    });
+    analyticsCache = null;
+    renderBackend({ ...health, backend: 'snowflake', data_scale: res.data_scale || health.data_scale });
+    // Refresh summary numbers so the screen matches what she speaks.
     try {
-      const res = await api('/api/backend', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ backend: 'snowflake' }),
-      });
-      analyticsCache = null;
-      renderBackend({ ...health, backend: 'snowflake', data_scale: res.data_scale || health.data_scale });
-      const badge = document.getElementById('backend');
-      if (badge && res.warm_ms != null) badge.title = `${res.data_scale} — warm-up ${Math.round(res.warm_ms)} ms`;
-    } catch (_) { /* server voice endpoints still prefer Snowflake */ }
+      const [summary, portfolio, analytics] = await Promise.all([
+        api('/api/summary'),
+        api('/api/metric?name=portfolio'),
+        api('/api/analytics').catch(() => null),
+      ]);
+      if (analytics) analyticsCache = analytics;
+      renderBackend(await api('/api/health'));
+      const marginPct = analytics?.summary?.margin_pct;
+      document.getElementById('summary').innerHTML = [
+        ['Accounts', num(summary.dealers)],
+        ['Active SKUs', num(summary.skus)],
+        ['Units sold', num(summary.units_sold)],
+        ['Net sales', money(summary.net_sales)],
+        ['Gross margin', money(summary.margin)],
+        ['Margin %', marginPct != null ? pct(marginPct) : '—'],
+        ['On hand', num(summary.on_hand)],
+        ['Quarantined', num(summary.quarantined)],
+      ].map(([k, v]) => `<div><span>${k}</span><strong>${v}</strong></div>`).join('');
+      const ch = analytics?.by_channel || [];
+      const preview = document.getElementById('portfolio');
+      if (preview) {
+        preview.innerHTML = `<div class="overview-grid">`
+          + `<div><h3>Channel mix</h3>${barChart(ch, 'channel', 'net_sales', { money: true })}</div>`
+          + `<div><h3>Dealer portfolio</h3>${htmlTable(portfolio.rows, 15)}</div>`
+          + `</div>`;
+      }
+    } catch (_) { /* brief still uses server-side Snowflake */ }
   }
 }
 
 async function runPortfolioBrief() {
   const btn = document.getElementById('brief-me');
   const status = document.getElementById('brief-status');
+  const voiceBtn = document.getElementById('voice-badge');
   primeVoicePlayback();
   if (btn) btn.disabled = true;
-  if (status) status.textContent = 'Building warehouse brief…';
+  if (voiceBtn) { voiceBtn.disabled = true; voiceBtn.classList.add('speaking'); }
+  if (status) status.textContent = 'Connecting to Snowflake…';
   try {
-    await softPreferSnowflake();
+    await requireSnowflakeForVoice();
+    if (status) status.textContent = 'Building Snowflake brief…';
     const data = await api('/api/voice-brief', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -648,8 +687,9 @@ async function runPortfolioBrief() {
     lastSpoken = data.spoken || '';
     const speakBtn = document.getElementById('speak-answer');
     if (speakBtn) speakBtn.disabled = !lastSpoken;
+    if (data.backend) renderBackend({ ...(await api('/api/health')), backend: data.backend });
     if (status) {
-      status.textContent = `${(data.backend || '').toUpperCase()} · ${(data.spoken || '').slice(0, 120)}${(data.spoken || '').length > 120 ? '…' : ''}`;
+      status.textContent = `SNOWFLAKE · ${(data.spoken || '').slice(0, 120)}${(data.spoken || '').length > 120 ? '…' : ''}`;
     }
     if (lastSpoken && voiceEnabled) {
       try {
@@ -664,14 +704,15 @@ async function runPortfolioBrief() {
     if (status) status.textContent = e.message;
   } finally {
     if (btn) btn.disabled = false;
+    if (voiceBtn) { voiceBtn.disabled = false; voiceBtn.classList.remove('speaking'); }
   }
 }
 
 async function voiceAsk(question) {
   const out = document.getElementById('out-proposed');
   out.classList.remove('out-rich');
-  out.textContent = 'Asking warehouse…';
-  await softPreferSnowflake();
+  out.textContent = 'Asking Snowflake…';
+  await requireSnowflakeForVoice();
   const data = await api('/api/voice-ask', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -795,7 +836,7 @@ async function boot() {
   };
   document.getElementById('catalog-q').addEventListener('change', loadCatalog);
   document.querySelectorAll('#backend-switch button').forEach(b => {
-    b.addEventListener('click', () => { if (!b.classList.contains('active')) switchBackend(b.dataset.backend); });
+    b.addEventListener('click', () => { if (!b.classList.contains('active')) switchBackend(b.dataset.backend).catch(() => {}); });
   });
   document.getElementById('logout').onclick = async () => {
     await api('/api/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
@@ -803,31 +844,32 @@ async function boot() {
   };
   const health = await api('/api/health');
   voiceEnabled = !!health.voice;
+  const snowflakeOk = (health.backends_available || []).includes('snowflake');
   const vb = document.getElementById('voice-badge');
   if (vb) {
-    vb.hidden = !voiceEnabled;
-    vb.textContent = voiceEnabled ? 'VOICE' : '';
-    vb.title = 'Jump to Overview and run Brief me';
-    vb.style.cursor = voiceEnabled ? 'pointer' : '';
+    const show = voiceEnabled && snowflakeOk;
+    vb.hidden = !show;
+    vb.textContent = 'Voice';
+    vb.title = 'Speak a live Snowflake portfolio brief';
     vb.onclick = () => {
-      if (!voiceEnabled) return;
+      primeVoicePlayback();
       showTab('overview');
       runPortfolioBrief().catch(e => alert(e.message));
     };
   }
   const vs = document.getElementById('voice-status');
   if (vs) {
-    vs.textContent = voiceEnabled
-      ? (health.cortex
-        ? 'Voice ready · mic → Snowflake metrics (Cortex fallback for freer questions) → spoken brief.'
-        : 'Voice ready · mic → warehouse metrics → spoken brief. Prefers Snowflake when available.')
-      : 'Voice offline on this host (ElevenLabs key not configured). Typed asks still work.';
+    if (!snowflakeOk) vs.textContent = 'Voice needs Snowflake on this host.';
+    else if (!voiceEnabled) vs.textContent = 'Voice offline (ElevenLabs key not configured). Typed Snowflake asks still work.';
+    else vs.textContent = health.cortex
+      ? 'Voice → Snowflake only · governed metrics, Cortex fallback for freer questions · spoken brief.'
+      : 'Voice → Snowflake only · governed metrics → spoken brief.';
   }
-  document.getElementById('mic-ask').disabled = !voiceEnabled;
+  document.getElementById('mic-ask').disabled = !(voiceEnabled && snowflakeOk);
   document.getElementById('speak-answer').disabled = true;
   const briefBtn = document.getElementById('brief-me');
   if (briefBtn) {
-    briefBtn.disabled = false;
+    briefBtn.disabled = !snowflakeOk;
     briefBtn.onclick = () => runPortfolioBrief().catch(e => alert(e.message));
   }
   await loadOverview();

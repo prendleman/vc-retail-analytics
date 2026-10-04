@@ -183,18 +183,18 @@ class Handler(BaseHTTPRequestHandler):
         stores = getattr(self.server, "stores", None) or {}
         return [b for b in ("local", "snowflake") if stores.get(b)] or [self.server.store.backend]
 
-    def prefer_snowflake_store(self):
-        """Voice analytics prefers the Snowflake scale when the backend is warm."""
+    def require_snowflake_store(self):
+        """Voice analytics runs only against Snowflake — no SQLite fallback."""
         stores = getattr(self.server, "stores", None) or {}
         sf = stores.get("snowflake")
         if not sf:
-            return self.store()
+            raise RuntimeError("Snowflake backend is not available on this host")
         try:
             sf.rows("SELECT dealer_id FROM dealers LIMIT 1")
-            return sf
         except Exception as e:  # noqa: BLE001
             print("voice snowflake warm failed:", type(e).__name__, str(e)[:160], flush=True)
-            return self.store()
+            raise RuntimeError("Snowflake warehouse did not respond; try again in a moment") from e
+        return sf
 
     def same_origin_ok(self):
         origin = self.headers.get("Origin")
@@ -483,7 +483,11 @@ class Handler(BaseHTTPRequestHandler):
                 if not question:
                     raise ValueError("question required")
                 dealer = self.scope({"dealer": [body.get("dealer", "")]})
-                s = self.prefer_snowflake_store()
+                try:
+                    s = self.require_snowflake_store()
+                except RuntimeError as e:
+                    return self.send({"error": str(e), "backend": "snowflake"}, 503)
+                voice_cookie = f"{BACKEND_COOKIE}=snowflake; Path=/; Max-Age=43200; SameSite=Lax; HttpOnly"
                 try:
                     name = resolve_metric(question)
                 except ValueError as err:
@@ -520,13 +524,14 @@ class Handler(BaseHTTPRequestHandler):
                                     "source": "cortex",
                                     "trace": [
                                         "voice_ask",
-                                        "prefer_snowflake",
+                                        "require_snowflake",
                                         "fuzzy_miss",
                                         "cortex_analyst",
                                         "execute_select",
                                         "speakable_brief",
                                     ],
-                                }
+                                },
+                                extra_headers={"Set-Cookie": voice_cookie},
                             )
                         except Exception as e:  # noqa: BLE001
                             print("voice cortex failed:", type(e).__name__, str(e)[:200], flush=True)
@@ -572,18 +577,24 @@ class Handler(BaseHTTPRequestHandler):
                         "source": "metric",
                         "trace": [
                             "voice_ask",
-                            "prefer_snowflake",
+                            "require_snowflake",
                             "resolve_metric",
                             "execute_read_only_metric",
                             "speakable_brief",
                         ],
-                    }
+                    },
+                    extra_headers={"Set-Cookie": voice_cookie},
                 )
             if path == "/api/voice-brief":
                 if not self.session() and not self.server.dealer:
                     raise PermissionError("Login required")
                 dealer = self.scope({"dealer": [body.get("dealer", "")]})
-                s = self.prefer_snowflake_store()
+                try:
+                    s = self.require_snowflake_store()
+                except RuntimeError as e:
+                    return self.send({"error": str(e), "backend": "snowflake"}, 503)
+                # Keep the browser session on Snowflake so header switch matches spoken numbers.
+                cookie = f"{BACKEND_COOKIE}=snowflake; Path=/; Max-Age=43200; SameSite=Lax; HttpOnly"
                 where = " WHERE dealer_id=?" if dealer else ""
                 params = [dealer] if dealer else []
                 summary = s.rows(
@@ -613,13 +624,14 @@ class Handler(BaseHTTPRequestHandler):
                         "source": "brief",
                         "trace": [
                             "voice_brief",
-                            "prefer_snowflake",
+                            "require_snowflake",
                             "summary",
                             "by_channel",
                             "stock_risk",
                             "speakable_brief",
                         ],
-                    }
+                    },
+                    extra_headers={"Set-Cookie": cookie},
                 )
             if path == "/api/login":
                 sess = demo_auth.authenticate(body.get("username"), body.get("password"))

@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/style.css?v=20261003f" />
+  <link rel="stylesheet" href="/style.css?v=20261004a" />
 </head>
 <body class="app">
   <header class="top">
@@ -17,16 +17,15 @@
         <strong>VC Retail Analytics</strong>
         <span class="brand-sub">Designer lighting · synthetic scale</span>
       </div>
-      <span id="badge" class="badge">SYNTHETIC</span>
-      <span id="backend" class="badge muted"></span>
-      <span id="voice-badge" class="badge muted" hidden>VOICE</span>
+      <span id="badge" class="badge" title="Synthetic demo data — not Visual Comfort production">SYNTHETIC</span>
     </div>
     <div class="right">
       <span id="backend-switch" class="switch" hidden title="Same governed SQL, two data scales">
         <span class="fine">Data</span>
         <button type="button" data-backend="local">SQLite</button>
-        <button type="button" data-backend="snowflake">Snowflake · 10 TB</button>
+        <button type="button" data-backend="snowflake" id="btn-snowflake">Snowflake</button>
       </span>
+      <button type="button" id="voice-badge" class="badge-btn" hidden title="Speak a live Snowflake portfolio brief">Voice</button>
       <span id="who"></span>
       <button id="logout" type="button">Log out</button>
     </div>
@@ -43,7 +42,7 @@
       <h2>Lighting retail at a glance</h2>
       <p class="fine lede-app">Session-scoped KPIs from governed warehouse metrics — Consumer, Trade, and Contract sell-through across the synthetic dealer network.</p>
       <div class="voice-row overview-actions">
-        <button id="brief-me" type="button" class="ghost" title="Speak a live warehouse portfolio brief">Brief me</button>
+        <button id="brief-me" type="button" class="ghost" title="Speak a live Snowflake portfolio brief">Brief me (Snowflake)</button>
         <span id="brief-status" class="fine"></span>
       </div>
       <div id="summary" class="stats"></div>
@@ -77,7 +76,7 @@
         </div>
         <div>
           <h3>Analytics workflow (demonstrated)</h3>
-          <p class="fine" id="voice-status">Voice: mic → warehouse ask → spoken brief (prefers Snowflake when available).</p>
+          <p class="fine" id="voice-status">Voice runs on Snowflake only — mic → governed metrics → spoken brief.</p>
           <textarea id="q-proposed" rows="3" placeholder="e.g. show margin percent — or use the mic"></textarea>
           <div class="voice-row">
             <button id="ask-proposed" type="button">Ask approved metric</button>
@@ -130,6 +129,6 @@
       <pre id="catalog-out" class="table"></pre>
     </section>
   </main>
-  <script src="/app.js?v=20261003f"></script>
+  <script src="/app.js?v=20261004a"></script>
 </body>
 </html>
