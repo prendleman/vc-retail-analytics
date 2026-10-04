@@ -2,14 +2,14 @@
   "synthetic": true,
   "as_of": "2026-09-30",
   "snowflake": {
-    "silver_facts": 1645231.0,
-    "units": 3870273.0,
-    "net_sales": 1638513337.74,
+    "silver_facts": 1211103.0,
+    "units": 3046081.0,
+    "net_sales": 769257880.17,
     "dealers": 1500.0,
-    "quarantined": 37409.0,
-    "purchase_orders": 2000000.0,
-    "inventory_snapshots": 65325000.0,
-    "mrp_plan": 5025000.0
+    "quarantined": 32167.0,
+    "purchase_orders": 18000.0,
+    "inventory_snapshots": 803972.0,
+    "mrp_plan": 61844.0
   },
   "snowflake_event_subset": {
     "silver_facts": 396.0,

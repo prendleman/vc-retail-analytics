@@ -49,7 +49,7 @@ CTYPES = {
 BACKEND_COOKIE = "vc_backend"
 DATA_SCALE = {
     "local": "SQLite: small synthetic seed (same schema as Snowflake SERVING)",
-    "snowflake": "Snowflake: 10 TB TPC-DS backbone (shared, 56.9B rows) + generated sales-org / procurement / inventory / MRP layer",
+    "snowflake": "Snowflake: 10 TB TPC-DS backbone (shared, 56.9B rows) re-skinned to public Visual Comfort scale (~$750M/yr, 1,500 accounts, 31K SKUs, 4 DCs) + generated sales-org / procurement / inventory / MRP layer",
 }
 
 

@@ -23,27 +23,62 @@ SERVE_WH = "AQ_VC_RETAIL_WH"
 
 # Rough credit expectations per heavy step on a LARGE warehouse (8 credits/hour). Printed, not enforced.
 COST_HINTS = {
-    "backbone": "~1-2 credits (dimension merges + one pass over TPC-DS inventory, 783M rows)",
-    "generate": "~0.5-1.5 credits at scale 1.0 (2M POs / ~8M lines / 1.6M BOM rows)",
-    "build": "~4-8 credits (two passes over TPC-DS store/catalog/web sales, ~50B rows; 150M-row forecast)",
+    "backbone": "~0.3-0.5 credits (dimension merges + one pass over TPC-DS inventory, 783M rows)",
+    "generate": "~0.1 credits at scale 1.0 (18K POs / ~72K lines / 124K BOM rows)",
+    "build": "~0.5-1 credit (two passes over TPC-DS store/catalog/web sales, ~50B rows, date-pruned to 24 months)",
+}
+
+# Public-data calibration of the re-skin to Visual Comfort & Co.'s scale. Every number is derived in
+# docs/VC_PUBLIC_CALIBRATION.md from third-party public sources (revenue estimates, the 2021 recapitalization, the
+# Peak Technologies DC case study, showroom-count press, headcount trackers, a dealer's catalog listing). Targets at
+# --volume-scale 1.0: ~$750M net / ~3.0M units a year across 1,500 accounts, ~31K SKUs, 4 DCs, 120 account reps.
+VC_PUBLIC = {
+    "ITEM_MOD": 13,              # 402,200 TPC-DS items -> ~30.9K SKUs
+    "INV_DIV": 250,              # DC on-hand divisor -> ~90 days of cover against re-skinned demand
+    "REP_COUNT": 100,            # + 20 loaded seed reps = 120, ~8% of ~1,540 employees in outside / account sales
+    "VENDOR_COUNT": 60,          # + 12 loaded seed vendors = 72
+    "COMPONENT_COUNT": 8_000,
+    "PO_ROWS": 18_000,           # ~$390M/yr purchases at ~$21K per PO (COGS ~52% of net)
+    "SHOWROOM_COUNT": 75,        # company locations listed publicly (72 US + 2 England + 1 China)
+    "ETAILER_COUNT": 25,
+    "DISTRIBUTOR_COUNT": 200,
+    # parts-per-million of raw TPC-DS ticket lines kept per dealer (after the 1-in-13 item filter, a TPC-DS store
+    # carries ~1.05M raw units/yr): showroom ~18K units ($4.5M), e-tailer ~8K ($2M), distributor ~2K ($0.5M),
+    # independent dealer median ~600 ($150K) with a x0.2..x5 long tail
+    "KEEP_PPM_SHOWROOM": 17_100,
+    "KEEP_PPM_ETAILER": 7_600,
+    "KEEP_PPM_DISTRIBUTOR": 1_900,
+    "KEEP_PPM_DEALER": 570,
+    "GROWTH": "1.08",            # annual growth used for quota trend (headcount +26% over 2023-26)
 }
 
 
 def _template_vars(a) -> dict:
     scale = max(0.01, a.scale)
+    vol = max(0.01, a.volume_scale)
+    c = VC_PUBLIC
     return {
         "BUILD_WH": BUILD_WH,
         "BUILD_TIMEOUT": str(a.build_timeout),
         "AS_OF": AS_OF,
         "YEAR_SHIFT": "24",  # TPC-DS 2000-10..2002-09 -> 2024-10..2026-09
         "INV_WEEKS": "13",
-        "SAMPLE_MOD": str(a.sample_mod),  # keep 1 in N tickets/orders of the TPC-DS retailer volume
+        "ITEM_MOD": str(a.item_mod or c["ITEM_MOD"]),
         "QTY_DIV": "25",  # TPC-DS qty 1..100 -> 1..4 units per line
-        "INV_DIV": "100",  # TPC-DS on-hand 0..1000 -> 0..10 per DC x SKU
-        "VENDOR_COUNT": str(max(12, int(60 * min(scale, 1.0)) or 12)),
-        "REP_COUNT": str(max(40, int(600 * min(scale, 1.0)))),
-        "COMPONENT_COUNT": str(max(500, int(50_000 * scale))),
-        "PO_ROWS": str(max(1_000, int(2_000_000 * scale))),
+        "INV_DIV": str(a.inv_div or c["INV_DIV"]),
+        "VOLUME_SCALE": str(vol),
+        "SHOWROOM_COUNT": str(c["SHOWROOM_COUNT"]),
+        "ETAILER_COUNT": str(c["ETAILER_COUNT"]),
+        "DISTRIBUTOR_COUNT": str(c["DISTRIBUTOR_COUNT"]),
+        "KEEP_PPM_SHOWROOM": str(c["KEEP_PPM_SHOWROOM"]),
+        "KEEP_PPM_ETAILER": str(c["KEEP_PPM_ETAILER"]),
+        "KEEP_PPM_DISTRIBUTOR": str(c["KEEP_PPM_DISTRIBUTOR"]),
+        "KEEP_PPM_DEALER": str(c["KEEP_PPM_DEALER"]),
+        "GROWTH": c["GROWTH"],
+        "VENDOR_COUNT": str(max(12, int(c["VENDOR_COUNT"] * min(scale, 1.0)) or 12)),
+        "REP_COUNT": str(max(40, int(c["REP_COUNT"] * min(scale, 1.0)))),
+        "COMPONENT_COUNT": str(max(500, int(c["COMPONENT_COUNT"] * scale))),
+        "PO_ROWS": str(max(1_000, int(c["PO_ROWS"] * scale * vol))),
         "DEMO_DEALER_COUNT": str(a.demo_dealers),
         "SCALE": str(scale),
     }
@@ -268,9 +303,11 @@ def main():
     p.add_argument("action", choices=["doctor", "platform", "load", "transform", "backbone", "generate", "build", "governance", "semantic", "validate", "reconcile", "all"])
     p.add_argument("--connection", default="aq")
     p.add_argument("--out", type=Path)
-    p.add_argument("--scale", type=float, default=1.0, help="Generated-layer scale (1.0 = 2M POs, 50K components). Backbone is always the full 10 TB share.")
-    p.add_argument("--demo-dealers", type=int, default=50, help="Dealers kept at dealer x SKU grain in SILVER.FACTS")
-    p.add_argument("--sample-mod", type=int, default=200, help="Keep 1 in N TPC-DS tickets/orders (volume re-skin: retailer -> lighting dealer). 1 = keep all.")
+    p.add_argument("--scale", type=float, default=1.0, help="Generated-layer scale (1.0 = calibrated: 18K POs, 8K components, 100 generated reps). Backbone is always the full 10 TB share.")
+    p.add_argument("--volume-scale", type=float, default=1.0, help="Multiplier on the calibrated sales volume (1.0 ≈ $750M / 3.0M units a year; see docs/VC_PUBLIC_CALIBRATION.md)")
+    p.add_argument("--demo-dealers", type=int, default=1500, help="Dealers kept at dealer x SKU grain in SILVER.FACTS (default: all)")
+    p.add_argument("--item-mod", type=int, default=0, help="Keep 1 in N TPC-DS items as SKUs (default from calibration: 13 -> ~31K SKUs)")
+    p.add_argument("--inv-div", type=int, default=0, help="DC on-hand divisor (default from calibration: 250)")
     p.add_argument("--build-timeout", type=int, default=5400)
     p.add_argument("--confirm-cost", action="store_true", help="Required for backbone/generate/build (LARGE warehouse credits)")
     a = p.parse_args()

@@ -7,6 +7,8 @@ ALTER SESSION SET QUERY_TAG='aq-vc-retail-generate';
 
 -- ---------------------------------------------------------------- sales org
 -- Salespeople: {{REP_COUNT}} generated reps, round-robin over territories so every territory has coverage.
+-- Generated reps beyond REP_COUNT from an earlier build are removed first (MERGE only inserts).
+DELETE FROM BRONZE.SALESPEOPLE WHERE REP_ID >= 'REP-1000' AND TRY_TO_NUMBER(SUBSTR(REP_ID, 5)) >= 1000 + {{REP_COUNT}};
 MERGE INTO BRONZE.SALESPEOPLE t USING (
   WITH ter AS (SELECT TERRITORY_ID, ROW_NUMBER() OVER (ORDER BY TERRITORY_ID) - 1 AS RN, COUNT(*) OVER () AS N FROM BRONZE.TERRITORIES),
        g AS (SELECT SEQ4() AS I FROM TABLE(GENERATOR(ROWCOUNT => {{REP_COUNT}})))
@@ -14,7 +16,8 @@ MERGE INTO BRONZE.SALESPEOPLE t USING (
          'Rep ' || CHR(65 + MOD(g.I, 26)) || '. ' || ARRAY_CONSTRUCT('Lighting','Fixtures','Lamps','Design','Studio')[MOD(g.I, 5)]::VARCHAR || ' ' || LPAD(1000 + g.I, 4, '0') AS NAME,
          ter.TERRITORY_ID,
          TO_VARCHAR(DATEADD(month, -UNIFORM(3, 96, RANDOM(11)), '{{AS_OF}}'::DATE), 'YYYY-MM') AS HIRE_MONTH,
-         UNIFORM(18000000, 42000000, RANDOM(12)) AS QUARTERLY_QUOTA_CENTS
+         -- fallback only (08 rebuilds quotas from actuals): ~$750M / {{REP_COUNT}} reps / 4 quarters, +-40%
+         UNIFORM(90000000, 220000000, RANDOM(12)) AS QUARTERLY_QUOTA_CENTS
   FROM g JOIN ter ON ter.RN = MOD(g.I, ter.N)
 ) s ON t.REP_ID = s.REP_ID
 WHEN NOT MATCHED THEN INSERT VALUES (s.REP_ID, s.NAME, s.TERRITORY_ID, s.HIRE_MONTH, s.QUARTERLY_QUOTA_CENTS);
@@ -146,9 +149,9 @@ JOIN BRONZE.PRODUCT_VENDOR_IDX pv ON pv.VENDOR_ID = po.VENDOR_ID AND pv.IDX = MO
 
 -- Shipments: one per PO that has moved (received/closed/in_transit, or open with partial receipt).
 CREATE OR REPLACE TABLE BRONZE.SHIPMENTS CLUSTER BY (PO_ID) AS
-WITH val AS (SELECT PO_ID, SUM(QTY_ORDERED * UNIT_COST_CENTS) AS VALUE_CENTS, SUM(QTY_RECEIVED) AS RCV FROM BRONZE.PO_LINES GROUP BY PO_ID),
+WITH val AS (SELECT PO_ID, SUM(QTY_ORDERED * UNIT_COST_CENTS) AS VALUE_CENTS, SUM(QTY_RECEIVED) AS RCV, SUM(QTY_ORDERED) AS ORD FROM BRONZE.PO_LINES GROUP BY PO_ID),
      po AS (
-       SELECT po.*, val.VALUE_CENTS, val.RCV,
+       SELECT po.*, val.VALUE_CENTS, val.RCV, val.ORD,
               CASE WHEN po.COUNTRY IN ('US','CA','MX') THEN FALSE ELSE TRUE END AS OVERSEAS,
               -- transit is a fraction of lead time (the rest is vendor make/pick time)
               GREATEST(3, ROUND(po.LEAD_DAYS * UNIFORM(0.25::FLOAT, 0.6::FLOAT, RANDOM(71))))::NUMBER AS TRANSIT,
@@ -173,7 +176,8 @@ SELECT 'SHP-' || SUBSTR(PO_ID, 4) AS SHIPMENT_ID, PO_ID, VENDOR_ID, DC_ID, SHIP_
        MODE,
        ROUND(VALUE_CENTS * CASE MODE WHEN 'ocean' THEN 0.04 WHEN 'air' THEN 0.14 WHEN 'truck' THEN 0.05 ELSE 0.035 END
              * UNIFORM(0.8::FLOAT, 1.3::FLOAT, RANDOM(73)))::NUMBER AS FREIGHT_CENTS,
-       UNIFORM(2, 60, RANDOM(74)) AS CARTONS
+       -- roughly one carton per unit ordered (fixtures ship in 1-2 cartons); public anchor: 12-15K cartons/day company-wide
+       GREATEST(1, ROUND(ORD * UNIFORM(0.9::FLOAT, 1.3::FLOAT, RANDOM(74))))::NUMBER AS CARTONS
 FROM s;
 
 -- Receipts: per received line on arrived shipments; defect rate higher overseas.

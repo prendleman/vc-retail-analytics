@@ -43,10 +43,11 @@ SELECT v.DEALER_ID, v.SKU_ID,
        IFF(MOD(ABS(HASH(v.DEALER_ID, v.SKU_ID)), 100) < 15, 0,
            GREATEST(1, CEIL(SUM(v.QTY) / 12.0 * (1 + MOD(ABS(HASH(v.SKU_ID, v.DEALER_ID)), 6)))))::NUMBER AS ON_HAND
 FROM SILVER.BACKBONE_SCOPED_VALIDATED v
-WHERE v.REASON IS NULL AND v.MONTH >= TO_VARCHAR(DATEADD(month, -12, '{{AS_OF}}'::DATE), 'YYYY-MM')
+WHERE v.REASON IS NULL AND v.MONTH >= TO_VARCHAR(DATEADD(month, -11, '{{AS_OF}}'::DATE), 'YYYY-MM')
 GROUP BY v.DEALER_ID, v.SKU_ID;
 
 -- SILVER.FACTS: trailing-12-month dealer x SKU facts for the demo scope, UNION event-sourced facts (02).
+-- Window = the 12 calendar months ending in AS_OF's month (-11 months, not -12, which would be 13 months).
 CREATE OR REPLACE TABLE SILVER.FACTS CLUSTER BY (DEALER_ID) AS
 WITH agg AS (
   SELECT v.DEALER_ID, v.SKU_ID, v.FAMILY, v.LEAD_BAND, v.COST_CENTS,
@@ -54,7 +55,7 @@ WITH agg AS (
          MODE(v.CHANNEL) AS CHANNEL,
          SUM(v.QTY) AS UNITS_SOLD, SUM(v.NET_SALES_CENTS) AS NET_SALES_CENTS
   FROM SILVER.BACKBONE_SCOPED_VALIDATED v
-  WHERE v.REASON IS NULL AND v.MONTH >= TO_VARCHAR(DATEADD(month, -12, '{{AS_OF}}'::DATE), 'YYYY-MM')
+  WHERE v.REASON IS NULL AND v.MONTH >= TO_VARCHAR(DATEADD(month, -11, '{{AS_OF}}'::DATE), 'YYYY-MM')
   GROUP BY v.DEALER_ID, v.SKU_ID, v.FAMILY, v.LEAD_BAND, v.COST_CENTS
 )
 SELECT a.DEALER_ID, a.SKU_ID, 1 AS VERSION, a.CHANNEL, a.FAMILY, d.REGION,
@@ -127,7 +128,9 @@ WITH q AS (
 SELECT sp.REP_ID, idx.QUARTER,
        ROUND(COALESCE(b.AVG_Q, sp.QUARTERLY_QUOTA_CENTS) * idx.IDX
              * (0.85 + UNIFORM(0::FLOAT, 1::FLOAT, RANDOM(91)) * 0.30)
-             * POWER(1.03, idx.I / 4.0))::NUMBER AS QUOTA_CENTS
+             -- annual growth trend (public: headcount +26% over 2023-26), centred on the trailing-4-quarter midpoint so
+             -- the quota base and the growth factor agree on the recent quarters
+             * POWER({{GROWTH}}, (idx.I - 5.5) / 4.0))::NUMBER AS QUOTA_CENTS
 FROM BRONZE.SALESPEOPLE sp CROSS JOIN idx LEFT JOIN base b ON b.REP_ID = sp.REP_ID;
 
 -- ---------------------------------------------------------------- vendor KPI from receipts (replaces loaded synthetic KPI)
@@ -153,7 +156,7 @@ GROUP BY p.VENDOR_ID;
 -- ---------------------------------------------------------------- inventory snapshots (backbone weekly + on-order / allocated / in-transit)
 CREATE OR REPLACE TABLE BRONZE.INVENTORY_SNAPSHOTS CLUSTER BY (SNAPSHOT_WEEK, DC_ID) AS
 WITH latest AS (SELECT MAX(SNAPSHOT_WEEK) AS W FROM BRONZE.INVENTORY_BACKBONE),
-     n_dc AS (SELECT COUNT(*) AS N FROM BRONZE.DISTRIBUTION_CENTERS),
+     dcw AS (SELECT DC_ID, WEIGHT / SUM(WEIGHT) OVER () AS W FROM BRONZE.DISTRIBUTION_CENTERS),
      on_order AS (
        SELECT pl.SKU_ID, SUM(pl.QTY_ORDERED - pl.QTY_RECEIVED) AS OPEN_QTY,
               SUM(IFF(po.STATUS = 'in_transit', pl.QTY_ORDERED - pl.QTY_RECEIVED, 0)) AS TRANSIT_QTY
@@ -161,10 +164,12 @@ WITH latest AS (SELECT MAX(SNAPSHOT_WEEK) AS W FROM BRONZE.INVENTORY_BACKBONE),
        WHERE po.STATUS IN ('open','in_transit') GROUP BY pl.SKU_ID
      )
 SELECT i.SNAPSHOT_WEEK, i.DC_ID, i.SKU_ID, i.ON_HAND,
-       IFF(i.SNAPSHOT_WEEK = latest.W, FLOOR(COALESCE(o.OPEN_QTY, 0) / n_dc.N), UNIFORM(0, 40, RANDOM(101)))::NUMBER AS ON_ORDER,
+       -- open / in-transit PO quantity is allocated to DCs by DC weight (Houston carries the largest share)
+       IFF(i.SNAPSHOT_WEEK = latest.W, ROUND(COALESCE(o.OPEN_QTY, 0) * dcw.W), UNIFORM(0, 12, RANDOM(101)))::NUMBER AS ON_ORDER,
        (FLOOR(i.ON_HAND * UNIFORM(0::FLOAT, 0.5::FLOAT, RANDOM(102))) + IFF(UNIFORM(0::FLOAT, 1::FLOAT, RANDOM(103)) < 0.05, UNIFORM(1, 3, RANDOM(104)), 0))::NUMBER AS ALLOCATED,
-       IFF(i.SNAPSHOT_WEEK = latest.W, FLOOR(COALESCE(o.TRANSIT_QTY, 0) / n_dc.N), UNIFORM(0, 5, RANDOM(105)))::NUMBER AS IN_TRANSIT
-FROM BRONZE.INVENTORY_BACKBONE i CROSS JOIN latest CROSS JOIN n_dc
+       IFF(i.SNAPSHOT_WEEK = latest.W, ROUND(COALESCE(o.TRANSIT_QTY, 0) * dcw.W), UNIFORM(0, 3, RANDOM(105)))::NUMBER AS IN_TRANSIT
+FROM BRONZE.INVENTORY_BACKBONE i CROSS JOIN latest
+JOIN dcw ON dcw.DC_ID = i.DC_ID
 LEFT JOIN on_order o ON o.SKU_ID = i.SKU_ID;
 
 -- ---------------------------------------------------------------- demand forecast: item x DC x month, calibrated to item actuals
@@ -173,9 +178,15 @@ WITH months AS (
   SELECT DISTINCT MONTH FROM BRONZE.CALENDAR WHERE MONTH >= TO_VARCHAR(DATEADD(month, -11, '{{AS_OF}}'::DATE), 'YYYY-MM')
   UNION ALL SELECT TO_VARCHAR(DATEADD(month, k.I, '{{AS_OF}}'::DATE), 'YYYY-MM') FROM (SELECT SEQ4() + 1 AS I FROM TABLE(GENERATOR(ROWCOUNT => 3))) k
 ), fam_bias AS (
-  SELECT FAMILY, (-0.12 + UNIFORM(0::FLOAT, 1::FLOAT, RANDOM(111)) * 0.24) AS BIAS FROM (SELECT DISTINCT FAMILY FROM BRONZE.PRODUCTS_BACKBONE)
-), dc AS (SELECT DC_ID, ROW_NUMBER() OVER (ORDER BY DC_ID) AS RN, COUNT(*) OVER () AS N FROM BRONZE.DISTRIBUTION_CENTERS),
-   base AS (
+  -- per-family planning bias in +-12%, deterministic (hash of family) and centred so the company total is unbiased
+  SELECT FAMILY, B - AVG(B) OVER () AS BIAS
+  FROM (SELECT FAMILY, -0.12 + 0.24 * (MOD(ABS(HASH(FAMILY || 'bias')), 1000) / 1000.0) AS B FROM (SELECT DISTINCT FAMILY FROM BRONZE.PRODUCTS_BACKBONE))
+), dc AS (
+     -- cumulative DC weight (0..1) for an exact proportional split of each SKU-month total
+     SELECT DC_ID, WEIGHT / SUM(WEIGHT) OVER () AS W,
+            SUM(WEIGHT) OVER (ORDER BY DC_ID ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) / SUM(WEIGHT) OVER () AS CUM_W
+     FROM BRONZE.DISTRIBUTION_CENTERS
+), base AS (
      -- history months: forecast is calibrated to the month's actual (family bias +-12%, noise 0.7-1.3), with a
      -- 5% chance of forecasting one unit where nothing sold. Future months (after AS_OF) use last year's actual.
      SELECT p.SKU_ID, p.FAMILY, m.MONTH,
@@ -191,10 +202,10 @@ WITH months AS (
             ABS(HASH(b.SKU_ID, b.MONTH)) AS H
      FROM base b JOIN fam_bias fb ON fb.FAMILY = b.FAMILY
    )
--- Split the SKU-month total across DCs without rounding drift: every DC gets FLOOR(T/N) and a rotating subset
--- of MOD(T, N) DCs gets one more, so SUM over DCs = T exactly.
+-- Split the SKU-month total across DCs by weight without rounding drift: DC_k gets FLOOR(T*CUM_k + r) - FLOOR(T*CUM_{k-1} + r)
+-- with a per-SKU-month offset r in [0,1), which telescopes to exactly T over all DCs and rounds without bias.
 SELECT t.MONTH, dc.DC_ID, t.SKU_ID,
-       (FLOOR(t.T / dc.N) + IFF(MOD(dc.RN - 1 + t.H, dc.N) < MOD(t.T, dc.N), 1, 0))::NUMBER AS FORECAST_UNITS,
+       (FLOOR(t.T * dc.CUM_W + MOD(t.H, 1000) / 1000.0) - FLOOR(t.T * (dc.CUM_W - dc.W) + MOD(t.H, 1000) / 1000.0))::NUMBER AS FORECAST_UNITS,
        ARRAY_CONSTRUCT('seasonal_naive','ets','croston','override')[MOD(ABS(HASH(t.SKU_ID)), 4)]::VARCHAR AS FORECAST_METHOD
 FROM tot t CROSS JOIN dc;
 
@@ -251,7 +262,7 @@ FROM SILVER.FACTS GROUP BY DEALER_ID, CHANNEL, REGION, FAMILY;
 
 CREATE OR REPLACE TABLE GOLD.CHANNEL_FAMILY_ALL AS
 SELECT DEALER_ID, CHANNEL, REGION, FAMILY, SUM(UNITS_SOLD) AS UNITS_SOLD, SUM(NET_SALES_CENTS)/100.0 AS NET_SALES, SUM(MARGIN_CENTS)/100.0 AS MARGIN
-FROM GOLD.MONTHLY_BASE WHERE MONTH >= TO_VARCHAR(DATEADD(month, -12, '{{AS_OF}}'::DATE), 'YYYY-MM')
+FROM GOLD.MONTHLY_BASE WHERE MONTH >= TO_VARCHAR(DATEADD(month, -11, '{{AS_OF}}'::DATE), 'YYYY-MM')
 GROUP BY DEALER_ID, CHANNEL, REGION, FAMILY;
 
 CREATE OR REPLACE TABLE GOLD.INVENTORY_WEEKLY_DC AS
@@ -291,6 +302,8 @@ CREATE OR REPLACE SECURE VIEW SERVING.QUARANTINE AS SELECT * FROM SILVER.QUARANT
 CREATE OR REPLACE SECURE VIEW SERVING.GOLD_CHANNEL_FAMILY AS SELECT * FROM GOLD.CHANNEL_FAMILY;
 CREATE OR REPLACE SECURE VIEW SERVING.GOLD_CHANNEL_FAMILY_ALL AS SELECT * FROM GOLD.CHANNEL_FAMILY_ALL;
 CREATE OR REPLACE SECURE VIEW SERVING.DISTRIBUTION_CENTERS AS SELECT DC_ID, NAME, REGION, STATE FROM BRONZE.DISTRIBUTION_CENTERS;
+-- Snowflake-only (calibration tiers), not part of the SQLite contract.
+CREATE OR REPLACE SECURE VIEW SERVING.DEALER_TIERS AS SELECT DEALER_ID, TIER FROM BRONZE.DEALER_TIER;
 CREATE OR REPLACE SECURE VIEW SERVING.REP_ASSIGNMENTS AS SELECT REP_ID, DEALER_ID, START_MONTH, END_MONTH FROM BRONZE.REP_ASSIGNMENTS;
 CREATE OR REPLACE SECURE VIEW SERVING.REP_QUOTAS AS SELECT REP_ID, QUARTER, QUOTA_CENTS FROM BRONZE.REP_QUOTAS;
 CREATE OR REPLACE SECURE VIEW SERVING.VENDOR_CONTRACTS AS SELECT * FROM BRONZE.VENDOR_CONTRACTS;

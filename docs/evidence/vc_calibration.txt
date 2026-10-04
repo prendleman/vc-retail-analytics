@@ -1,0 +1,21 @@
+# Public-data calibration check — 2026-10-03 19:33 CDT — all figures synthetic, trailing 12 months to 2026-09-30
+# Targets and sources: docs/VC_PUBLIC_CALIBRATION.md
+T12M company ($M, units M, GM%, $/unit): [(Decimal('753.0'), Decimal('3.038'), Decimal('47.4'), 248)]
+by tier (n, $M, median $K, min $K, max $K): [('showroom', 75, Decimal('345.8'), 3572, 1101, 16673), ('dealer', 1200, Decimal('240.5'), 96, 2, 1243), ('distributor', 200, Decimal('100.5'), 384, 85, 1700), ('etailer', 25, Decimal('66.2'), 2134, 870, 5953)]
+channel mix %: [('Consumer', Decimal('31.5')), ('Contract', Decimal('19.3')), ('Trade', Decimal('49.2'))]
+list p10/50/90/99 $: [(99, 203, 442, 2978)]
+SKUs / SKUs sold T12M: [(30923, 20615)]
+DC on-hand share % / days of cover: [('DC-CA', Decimal('23.9')), ('DC-NJ', Decimal('20.0')), ('DC-OH', Decimal('24.1')), ('DC-TX', Decimal('32.0'))] [(88,)]
+PO ordered $M / inbound cartons per day / past-due % of open: [(Decimal('388.6'),)] [(8252,)] [(Decimal('14.2'),)]
+vendor OTIF p10/50/90 / countries: [(38, 59, 87)] [('CN', 19), ('US', 13), ('VN', 9), ('IT', 7), ('TW', 7), ('IN', 6), ('PH', 3)]
+MRP codes: [('none', 30990), ('expedite', 19182), ('shortage', 4224), ('cancel', 3318), ('de_expedite', 3209), ('excess', 921)]
+forecast bias by family %: [('Alabaster', Decimal('1.5')), ('Ceiling', Decimal('9.2')), ('Cordless', Decimal('5.5')), ('Fans', Decimal('-5.4')), ('Lamps', Decimal('-9.3')), ('Outdoor', Decimal('1.0')), ('Wall', Decimal('-1.0'))]
+attainment 2026-Q3 p10/50/90 % (n): [(88, 99, 127, 98)]
+attainment 2026-Q2 p10/50/90 % (n): [(91, 106, 127, 98)]
+reps / dealers per rep p10/50/90 / rep book p10/50/90 $M: [(120,)] [(3, 10, 38)] [(Decimal('0.6'), Decimal('4.4'), Decimal('16.3'))]
+integrity: [('po_lines_without_po', 0), ('facts_unknown_dealer', 0), ('facts_margin_gt_sales', 0), ('dealers_without_active_rep', 0), ('forecast_dc_split_drift', 0)]
+credits this session (last 2h, LARGE build wh): [('AQ_VC_BUILD_WH', Decimal('3.01')), ('AQ_VC_RETAIL_WH', Decimal('0.15')), ('COMPUTE_WH', Decimal('0.12'))]
+
+# after 12-month window fix (SILVER.FACTS = backbone T12M + 396 event-sourced seed facts)
+SILVER.FACTS totals (rows, units, $M, GM%): [(1211103, 3046081, 769.3, 47.3)]
+facts per dealer p10/50/90 rows: [(31, 267, 1893)]

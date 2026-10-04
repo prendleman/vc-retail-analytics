@@ -6,6 +6,7 @@
     "snowflake_validate.txt": "validate step: layer counts, backbone size, integrity checks",
     "reconcile.json": "event-sourced subset vs local SQLite seed (exact match)",
     "rap_dual_principal.txt": "row access policy on three principals incl. one pinned to DLR-0001; role escalation and governance-table reads denied",
-    "cortex_analyst.txt": "Cortex Analyst REST path over both semantic views; generated SQL executed as pinned and unrestricted principals"
+    "cortex_analyst.txt": "Cortex Analyst REST path over both semantic views; generated SQL executed as pinned and unrestricted principals",
+    "vc_calibration.txt": "measured scale after the public-data calibration (revenue, units, margin, tiers, DCs, reps, purchasing, forecast, MRP) vs docs/VC_PUBLIC_CALIBRATION.md"
   }
 }
