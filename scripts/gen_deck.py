@@ -27,7 +27,7 @@ WARM = RGBColor(0xE8, 0xDF, 0xCF)
 
 ASSETS = Path(__file__).resolve().parents[1] / "docs" / "deck" / "assets"
 DEMO_URL = os.environ.get("VC_DEMO_URL", "https://vc.datasharkbi.com/").rstrip("/") + "/"
-TOTAL = 17
+TOTAL = 18
 
 
 def set_run(run, size=18, bold=False, color=INK, font="Georgia", underline=False):
@@ -180,9 +180,9 @@ def build(out_path: str) -> str:
     add_link_text(s, Inches(0.65), Inches(3.25), Inches(12), Inches(0.35), DEMO_URL, DEMO_URL, size=16, color=ACCENT)
     for i, (n, t, b) in enumerate([
         ("1", "Open", "Click the dark bar above"),
-        ("2", "Sign in", "dlr-0001 / vc-demo"),
+        ("2", "Sign in", "operator / vc-demo"),
         ("3", "Confirm", "SYNTHETIC badge on"),
-        ("4", "Walk", "Overview → Analytics → Assistant → Catalog"),
+        ("4", "Walk", "Overview → Analytics (Market) → Lab → Assistant"),
     ]):
         left = Inches(0.65) + Inches(i * 3.15)
         add_rect(s, left, Inches(3.9), Inches(3.0), Inches(2.7), fill=CARD, line=LINE)
@@ -430,7 +430,30 @@ def build(out_path: str) -> str:
     ], color=LIGHT, size=14)
     footer(s, 16)
 
-    # ----- 17 Close -----
+    # ----- 17 Interview Lab (Rahul) -----
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    add_bg(s, W, H)
+    eyebrow(s, "Interview Lab")
+    title_bar(s, "What to open with an AI Engineer")
+    cards = [
+        ("Board brief", "Chains share expansion → GM lift → forecast vs run-rate → growth into one spoken narrative."),
+        ("Eval harness", "20 golden prompts: FAQ · metric · voice fuzzy · refuse. Pass/fail + latency on screen."),
+        ("Cortex vs governed", "Same question side-by-side. Prefer closed metrics; Cortex is discovery/fallback."),
+        ("Scope / RAP story", "Operator pins DLR-0001 — same ask, fewer rows. App-layer mirror of Snowflake RAP."),
+        ("90-day plan", "Grounding → measure → harden. Non-goals: no invented order status, no day-one phone replacement."),
+        ("Market + voice", "Competitor landscape (public-estimate), continuous Mic on Snowflake, Market analytics tab."),
+    ]
+    for i, (t, b) in enumerate(cards):
+        col, row = i % 3, i // 3
+        left = Inches(0.55) + Inches(col * 4.2)
+        top = Inches(1.45) + Inches(row * 2.55)
+        add_rect(s, left, top, Inches(4.0), Inches(2.35), fill=CARD, line=LINE)
+        add_rect(s, left, top, Inches(4.0), Inches(0.08), fill=ACCENT)
+        add_textbox(s, left + Inches(0.2), top + Inches(0.25), Inches(3.6), Inches(0.4), t, size=16, color=INK, font="Georgia")
+        add_textbox(s, left + Inches(0.2), top + Inches(0.75), Inches(3.6), Inches(1.4), b, size=13, color=MUTED, font="Calibri")
+    footer(s, 17)
+
+    # ----- 18 Close -----
     s = prs.slides.add_slide(prs.slide_layouts[6])
     add_bg(s, W, H, DARK)
     add_rect(s, 0, 0, Inches(7.0), H, fill=DARK)
@@ -440,7 +463,7 @@ def build(out_path: str) -> str:
     add_textbox(s, Inches(0.65), Inches(2.05), Inches(6), Inches(1.3), "Open the wiring.\nClick the demo.", size=36, color=LIGHT, font="Georgia")
     add_link_button(s, Inches(0.65), Inches(3.7), Inches(5.5), Inches(0.75), "Open live demo →", DEMO_URL, size=18)
     add_link_text(s, Inches(0.65), Inches(4.65), Inches(6), Inches(0.35), DEMO_URL, DEMO_URL, size=14, color=SOFT, bold=False)
-    add_textbox(s, Inches(0.65), Inches(5.2), Inches(6), Inches(0.8), "dlr-0001 / vc-demo\nNot Visual Comfort production data.", size=14, color=SOFT, font="Calibri")
+    add_textbox(s, Inches(0.65), Inches(5.2), Inches(6), Inches(0.8), "operator / vc-demo\nNot Visual Comfort production data.", size=14, color=SOFT, font="Calibri")
     add_textbox(s, Inches(0.65), Inches(6.3), Inches(6), Inches(0.35), "Paul Rendleman", size=15, color=LIGHT, font="Georgia")
 
     prs.save(out_path)

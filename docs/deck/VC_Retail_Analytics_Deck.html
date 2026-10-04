@@ -114,8 +114,8 @@
   <div class="pad" style="display:flex;flex-direction:column;justify-content:center;max-width:6.2in;">
     <p class="eyebrow">Independent prototype · Synthetic data</p>
     <h1>VC Retail Analytics</h1>
-    <p class="lede" style="max-width:5.9in;">An independent analytics prototype for designer-lighting retail workflows. Synthetic retail data, controlled metric queries, and a deterministic assistant for exploring margin, seasonality, field performance, and supply.</p>
-    <p class="fine" style="color:#c8c0b0;max-width:5.9in;">The assistant is <strong style="color:#f4efe4;">not an LLM</strong>. It routes exact supported prompts to approved metric queries and returns traceable SQL and rows. That constraint is the engineering point: tool access, metric definitions, user scope, and testable responses.</p>
+    <p class="lede" style="max-width:5.9in;">An independent analytics prototype for designer-lighting retail workflows. Synthetic retail data sized to public Visual Comfort scale, controlled metric queries, voice on Snowflake, Market / competitor share plays, and an Interview Lab for AI-engineering conversation.</p>
+    <p class="fine" style="color:#c8c0b0;max-width:5.9in;">The typed assistant is <strong style="color:#f4efe4;">not an LLM</strong>. It routes supported prompts to approved metric queries and returns traceable SQL and rows. Voice can fuzzy-route, then fall back to Cortex Analyst on Snowflake. That constraint is the engineering point: tool access, metric definitions, user scope, and testable responses.</p>
     <div class="link-row" style="margin-top:14px;">
       <a class="cta" href="https://vc.datasharkbi.com/">Open hosted demo →</a>
     </div>
@@ -125,8 +125,8 @@
     </div>
     <div class="chips">
       <span class="chip">Synthetic</span>
-      <span class="chip">SQLite on Fly</span>
-      <span class="chip">Deterministic router</span>
+      <span class="chip">SQLite + Snowflake</span>
+      <span class="chip">Interview Lab</span>
       <span class="chip">Access-gated</span>
     </div>
     <p class="fine" style="margin-top:18px;">Paul Rendleman · independent prototype</p>
@@ -142,7 +142,7 @@
     <img class="shot" src="file:///Users/paulrendleman/Documents/vc-retail-analytics/docs/deck/assets/shot_analytics_margin.png" alt="Analytics margin view screenshot" />
     <p class="fine" style="margin-top:8px;">Business next step: inspect mix and discounts on the thinnest channel, then low-margin SKUs. Numbers are synthetic fixtures, not Visual Comfort business results.</p>
   </div>
-  <div class="foot"><span>VC Retail Analytics · synthetic · Paul Rendleman</span><a href="https://vc.datasharkbi.com/">https://vc.datasharkbi.com</a><span>2 / 12</span></div>
+  <div class="foot"><span>VC Retail Analytics · synthetic · Paul Rendleman</span><a href="https://vc.datasharkbi.com/">https://vc.datasharkbi.com</a><span>2 / 13</span></div>
 </section>
 
 <!-- 3 Traceable assistant -->
@@ -171,7 +171,7 @@
       </div>
     </div>
   </div>
-  <div class="foot"><span>VC Retail Analytics · synthetic · Paul Rendleman</span><a href="https://vc.datasharkbi.com/">https://vc.datasharkbi.com</a><span>3 / 12</span></div>
+  <div class="foot"><span>VC Retail Analytics · synthetic · Paul Rendleman</span><a href="https://vc.datasharkbi.com/">https://vc.datasharkbi.com</a><span>3 / 13</span></div>
 </section>
 
 <!-- 4 Retail use cases -->
@@ -187,14 +187,14 @@
       </div>
     </div>
     <div class="grid4">
-      <div class="card"><h3>Core</h3><p>Channel, family, region sell-through and stock-risk flags.</p></div>
+      <div class="card"><h3>Market</h3><p>Demand outlook, competitor landscape (public-estimate), share expansion, GM lift, growth momentum.</p></div>
       <div class="card"><h3>Margin</h3><p>Margin %, realization, mix waterfall, low-margin SKUs.</p></div>
-      <div class="card"><h3>Season</h3><p>Seasonal index heatmap, YoY, lead-vs-peak buy-ahead flags.</p></div>
-      <div class="card"><h3>Field &amp; Supply</h3><p>Territories, whitespace, rep grades; days of cover, reorder, vendor scorecard.</p></div>
+      <div class="card"><h3>Season &amp; Field</h3><p>Seasonal index, YoY, territories, whitespace, rep grades.</p></div>
+      <div class="card"><h3>Supply &amp; Plan</h3><p>Days of cover, reorder, vendor Prefer/Watch/Exit, MRP, forecast accuracy.</p></div>
     </div>
-    <p class="fine" style="margin-top:10px;">Five Analytics subnav sections (Core, Margin, Season, Field, Supply) covering the six investigation themes listed in the repository README.</p>
+    <p class="fine" style="margin-top:10px;">Analytics subnav includes Market · Core · Margin · Season · Field · Supply · Procurement · Planning. Interview Lab adds board brief, golden evals, Cortex vs governed, RAP-style scope switch, and a 90-day plan.</p>
   </div>
-  <div class="foot"><span>VC Retail Analytics · synthetic · Paul Rendleman</span><a href="https://vc.datasharkbi.com/">https://vc.datasharkbi.com</a><span>4 / 12</span></div>
+  <div class="foot"><span>VC Retail Analytics · synthetic · Paul Rendleman</span><a href="https://vc.datasharkbi.com/">https://vc.datasharkbi.com</a><span>4 / 13</span></div>
 </section>
 
 <!-- 5 Runtime path -->
@@ -209,7 +209,7 @@
       <div class="card"><h3>Session scope</h3><p>HMAC-signed cookie binds dealer or operator role. Dealer sessions cannot request another dealer via query or body.</p></div>
     </div>
   </div>
-  <div class="foot"><span>VC Retail Analytics · synthetic · Paul Rendleman</span><a href="https://vc.datasharkbi.com/">https://vc.datasharkbi.com</a><span>5 / 12</span></div>
+  <div class="foot"><span>VC Retail Analytics · synthetic · Paul Rendleman</span><a href="https://vc.datasharkbi.com/">https://vc.datasharkbi.com</a><span>5 / 13</span></div>
 </section>
 
 <!-- 6 Data model -->
@@ -224,7 +224,7 @@
       <div class="card"><h3>Approved metrics</h3><p>Named SQL templates in <code>METRICS</code>. UI and assistant only expose that closed set.</p></div>
     </div>
   </div>
-  <div class="foot"><span>VC Retail Analytics · synthetic · Paul Rendleman</span><a href="https://vc.datasharkbi.com/">https://vc.datasharkbi.com</a><span>6 / 12</span></div>
+  <div class="foot"><span>VC Retail Analytics · synthetic · Paul Rendleman</span><a href="https://vc.datasharkbi.com/">https://vc.datasharkbi.com</a><span>6 / 13</span></div>
 </section>
 
 <!-- 7 Engineering checks -->
@@ -232,7 +232,7 @@
   <div class="pad">
     <p class="eyebrow">Evidence</p>
     <div class="title-row"><div class="bar"></div><h2>Engineering checks and observed results</h2></div>
-    <p class="fine">Local checks: <code>b40c9f6</code>, 2026-10-02T20:38Z (re-run PASS). Hosted smoke: <code>b40c9f6</code> image, 2026-10-02T20:45Z, PASS. Details in docs/VC_Submission_Verification.md.</p>
+    <p class="fine">Local checks: <code>c24bebd</code>, 2026-10-02T20:38Z (re-run PASS). Hosted smoke: <code>c24bebd</code> image, 2026-10-02T20:45Z, PASS. Details in docs/VC_Submission_Verification.md.</p>
     <table class="data">
       <tr><th>Check</th><th>Observed result</th><th>Evidence</th></tr>
       <tr><td>Unit / API suite</td><td class="pass">PASS</td><td>6/6 tests in <code>tests/test_core.py</code> + <code>tests/test_assistant.py</code></td></tr>
@@ -245,7 +245,7 @@
       <tr><td>Hosted authenticated walkthrough</td><td class="pass">PASS</td><td>Operator path on vc.datasharkbi.com: Overview, Analytics (5 sections), assistant metric + SQL trace, catalog search, logout</td></tr>
     </table>
   </div>
-  <div class="foot"><span>VC Retail Analytics · synthetic · Paul Rendleman</span><a href="https://vc.datasharkbi.com/">https://vc.datasharkbi.com</a><span>7 / 12</span></div>
+  <div class="foot"><span>VC Retail Analytics · synthetic · Paul Rendleman</span><a href="https://vc.datasharkbi.com/">https://vc.datasharkbi.com</a><span>7 / 13</span></div>
 </section>
 
 <!-- 8 Status -->
@@ -258,16 +258,38 @@
       <tr><td>Hosted app + SQLite</td><td class="pass">Running</td><td>Fly machine started; Access OTP gate; authenticated hosted walkthrough PASS (see verification notes)</td></tr>
       <tr><td>Deterministic assistant</td><td class="pass">Implemented + tested</td><td>Exact-match router; SQL trace; forecast refusal tested</td></tr>
       <tr><td>Session dealer scope</td><td class="pass">Implemented + tested</td><td>Server-side scope + isolation tests</td></tr>
-      <tr><td>Analytics depth (5 sections)</td><td class="pass">Implemented</td><td>Margin / season / field / supply metrics in METRICS + UI</td></tr>
-      <tr><td>Snowflake adapter / RAP</td><td class="note">Implemented, unverified live</td><td>Code + SQL present; not reconciled in this submission</td></tr>
-      <tr><td>LLM integration</td><td class="note">Proposed</td><td>Not running; would call the same approved tools</td></tr>
+      <tr><td>Analytics depth (Market + depth)</td><td class="pass">Implemented</td><td>Market forecast / competitors / GM / growth; margin / season / field / supply / procure / plan</td></tr>
+      <tr><td>Interview Lab</td><td class="pass">Implemented</td><td>Board brief, golden evals, Cortex vs governed, operator scope pin, 90-day plan</td></tr>
+      <tr><td>Voice on Snowflake</td><td class="pass">Implemented</td><td>Continuous Mic + board/portfolio brief; ElevenLabs; Snowflake-only numbers</td></tr>
+      <tr><td>Snowflake adapter / RAP</td><td class="pass">Verified</td><td>Hosted toggle + RAP evidence; Lab scope mirrors dealer pin</td></tr>
+      <tr><td>LLM as free-form answerer</td><td class="note">Not the product</td><td>Cortex is discovery/fallback; production answers stay governed</td></tr>
     </table>
     <p class="fine" style="margin-top:12px;">Public support and authenticated dealer analytics serve different needs. This prototype explores how controlled warehouse metrics could support dealer and internal questions alongside familiar FAQ and escalation workflows. It is not an assessment of Visual Comfort internal systems.</p>
   </div>
-  <div class="foot"><span>VC Retail Analytics · synthetic · Paul Rendleman</span><a href="https://vc.datasharkbi.com/">https://vc.datasharkbi.com</a><span>8 / 12</span></div>
+  <div class="foot"><span>VC Retail Analytics · synthetic · Paul Rendleman</span><a href="https://vc.datasharkbi.com/">https://vc.datasharkbi.com</a><span>8 / 13</span></div>
 </section>
 
-<!-- 9 Reviewer walkthrough -->
+<!-- 9 Interview Lab -->
+<section class="page">
+  <div class="pad">
+    <p class="eyebrow">For the AI Engineer conversation</p>
+    <div class="title-row"><div class="bar"></div><h2>Interview Lab — what to open with Rahul</h2></div>
+    <div class="grid2">
+      <div class="card"><h3>1 · Board brief</h3><p>Chains share expansion → GM lift → forecast vs run-rate → growth into one spoken narrative with SQL traces.</p></div>
+      <div class="card"><h3>2 · Eval harness</h3><p>20 golden prompts (FAQ · metric · voice fuzzy · refuse). Pass/fail + latency on screen.</p></div>
+      <div class="card"><h3>3 · Cortex vs governed</h3><p>Same question side-by-side. Prefer closed metrics; Cortex is discovery/fallback on Snowflake.</p></div>
+      <div class="card"><h3>4 · Scope / RAP story</h3><p>As <code>operator</code>, pin DLR-0001 — same ask, fewer rows. App-layer mirror of Snowflake RAP.</p></div>
+    </div>
+    <div class="card" style="margin-top:10px;">
+      <h3>5 · What I'd ship in 90 days</h3>
+      <p>Days 1–30 grounding · 31–60 assist + measure · 61–90 harden. Non-goals: inventing order status, replacing phone lanes day one.</p>
+    </div>
+    <p class="fine" style="margin-top:10px;">Also: Market tab (competitors / GM / growth) and continuous Mic on Assistant. Login: <code>operator</code> / <code>vc-demo</code>.</p>
+  </div>
+  <div class="foot"><span>VC Retail Analytics · synthetic · Paul Rendleman</span><a href="https://vc.datasharkbi.com/">https://vc.datasharkbi.com</a><span>9 / 13</span></div>
+</section>
+
+<!-- 10 Reviewer walkthrough -->
 <section class="page">
   <div class="pad">
     <p class="eyebrow">Reviewer path</p>
@@ -283,34 +305,33 @@
         </ul>
       </div>
       <div class="card">
-        <h3>Supported prompts to try</h3>
+        <h3>Path to try</h3>
         <ul class="clean">
-          <li><code>show margin percent</code></li>
-          <li><code>show vendor scorecard</code></li>
-          <li><code>show rep grades</code></li>
-          <li><code>show lead vs peak</code></li>
-          <li>Refuse check: ask for an invented forecast</li>
+          <li>Analytics → <strong>Market</strong></li>
+          <li><strong>Lab</strong>: board brief → evals → Compare → pin DLR-0001</li>
+          <li>Assistant Mic: “show share expansion”</li>
+          <li>Refuse check: invent a forecast</li>
         </ul>
       </div>
     </div>
     <div class="card" style="margin-top:12px;">
       <h3>Fallback if Access blocks you</h3>
-      <p>Screenshots in this PDF are from the current synthetic build. Source is public at <a class="url" href="https://github.com/prendleman/vc-retail-analytics">https://github.com/prendleman/vc-retail-analytics</a>. Local run: <code>python3 -m app.server</code> then http://127.0.0.1:8770/login. Additional reviewers may need access enabled before opening the hosted demo.</p>
+      <p>Screenshots in this PDF are from the current synthetic build. Source is public at <a class="url" href="https://github.com/prendleman/vc-retail-analytics">https://github.com/prendleman/vc-retail-analytics</a>. Local run: <code>python3 -m app.server</code> then http://127.0.0.1:8770/login.</p>
     </div>
-    <p class="fine" style="margin-top:10px;">If an older UI still appears after a deploy, a normal refresh should pull versioned assets.</p>
+    <p class="fine" style="margin-top:10px;">Hard-refresh after deploy to pull versioned assets.</p>
   </div>
-  <div class="foot"><span>VC Retail Analytics · synthetic · Paul Rendleman</span><a href="https://vc.datasharkbi.com/">https://vc.datasharkbi.com</a><span>9 / 12</span></div>
+  <div class="foot"><span>VC Retail Analytics · synthetic · Paul Rendleman</span><a href="https://vc.datasharkbi.com/">https://vc.datasharkbi.com</a><span>10 / 13</span></div>
 </section>
 
-<!-- 10 Close -->
+<!-- 11 Close -->
 <section class="page hero">
   <div class="hero-bg"></div>
   <div class="accent-bar"></div>
   <div class="pad" style="display:flex;flex-direction:column;justify-content:center;max-width:6in;">
     <p class="eyebrow">Close</p>
     <h1>What this prototype demonstrates</h1>
-    <p class="lede">Synthetic dealer analytics with approved metric definitions, session scope, quarantine, and a deterministic assistant that returns traceable results. Useful foundation for later LLM tooling without inventing answers.</p>
-    <p class="fine" style="color:#c8c0b0;">Limitations: synthetic data only; Snowflake not live-reconciled here; Access OTP required for the hosted hostname; scores are illustrative rules.</p>
+    <p class="lede">Synthetic dealer analytics with approved metrics, session scope, Snowflake toggle, voice, Market/competitor plays, and an Interview Lab for grounding, evals, and a 90-day plan — without inventing warehouse answers.</p>
+    <p class="fine" style="color:#c8c0b0;">Limitations: synthetic data; competitor $ are public-estimate calibrated; Access OTP required; capture rates are illustrative.</p>
     <div class="link-row" style="margin-top:16px;">
       <a class="cta" href="https://vc.datasharkbi.com/">Open hosted demo →</a>
     </div>
@@ -320,50 +341,48 @@
     </div>
     <p class="fine" style="margin-top:22px;color:#f4efe4;">Paul Rendleman</p>
   </div>
+  <div class="foot"><span>VC Retail Analytics · synthetic · Paul Rendleman</span><a href="https://vc.datasharkbi.com/">https://vc.datasharkbi.com</a><span>11 / 13</span></div>
 </section>
 
 <!-- A1 Appendix optional Snowflake -->
 <section class="page">
   <div class="pad">
     <p class="eyebrow">Appendix A · optional</p>
-    <div class="title-row"><div class="bar"></div><h2>Snowflake path (code present, live not verified)</h2></div>
-    <p class="lede">One UI can target SQLite or Snowflake. This submission’s hosted runtime is SQLite on Fly. Snowflake SQL, serving views, and RAP scripts exist under <code>sql/snowflake/</code> and <code>scripts/cloud.py</code>.</p>
+    <div class="title-row"><div class="bar"></div><h2>Snowflake path (live on hosted toggle)</h2></div>
+    <p class="lede">One UI targets SQLite or Snowflake. Hosted demo defaults to SQLite with a header switch. SERVING views, RAP, and Cortex Analyst are demonstrated; competitor metrics use dialect-safe CTE literals.</p>
     <div class="grid3">
-      <div class="card"><h3>Present</h3><p>Platform, transform, governance, semantic SQL; dual-backend app flag.</p></div>
-      <div class="card"><h3>Not shown here</h3><p>Live reconcile, RAP enforcement proof, Cortex Analyst evaluation.</p></div>
-      <div class="card"><h3>Validation status</h3><p>Live Snowflake validation pending. Backend reconciliation and row-access policy checks have not been demonstrated in this submission.</p></div>
+      <div class="card"><h3>Present</h3><p>Platform, transform, governance, semantic SQL; dual-backend flag; Lab Cortex compare.</p></div>
+      <div class="card"><h3>Evidence</h3><p>docs/evidence RAP dual-principal + Cortex Analyst; hosted health reports cortex + snowflake.</p></div>
+      <div class="card"><h3>Honesty</h3><p>Competitor revenues are public-estimate / assumption calibrated — not filed financials.</p></div>
     </div>
   </div>
-  <div class="foot"><span>VC Retail Analytics · synthetic · Paul Rendleman</span><a href="https://vc.datasharkbi.com/">https://vc.datasharkbi.com</a><span>11 / 12</span></div>
+  <div class="foot"><span>VC Retail Analytics · synthetic · Paul Rendleman</span><a href="https://vc.datasharkbi.com/">https://vc.datasharkbi.com</a><span>12 / 13</span></div>
 </section>
-
-<!-- A2 Appendix metrics list -->
 <section class="page">
   <div class="pad">
     <p class="eyebrow">Appendix B · optional</p>
     <div class="title-row"><div class="bar"></div><h2>Approved metric vocabulary (excerpt)</h2></div>
     <div class="grid2">
       <div class="card">
-        <h3>Core / margin / season</h3>
+        <h3>Market / growth / competitors</h3>
         <ul class="clean">
-          <li>portfolio, by_channel, by_family, by_region, stock_risk</li>
-          <li>margin_pct, price_realization, low_margin_skus, margin_waterfall</li>
-          <li>units_by_month, seasonal_index, yoy_family, lead_vs_peak</li>
+          <li>demand_outlook, forecast_vs_runrate, growth_momentum, channel_growth</li>
+          <li>competitor_landscape, competitive_position, share_expansion, region_expansion</li>
+          <li>gm_opportunity_usd, discount_drag, channel_share</li>
         </ul>
       </div>
       <div class="card">
-        <h3>Field / supply / quality</h3>
+        <h3>Core / margin / season / field</h3>
         <ul class="clean">
-          <li>territory_perf, territory_coverage, whitespace</li>
-          <li>rep_leaderboard, rep_grade</li>
-          <li>days_of_cover, reorder_candidates, plan_vs_season</li>
-          <li>vendor_otif, vendor_scorecard, quality</li>
+          <li>portfolio, by_channel, margin_pct, margin_waterfall, seasonal_index</li>
+          <li>territory_perf, whitespace, rep_grade, vendor_scorecard</li>
+          <li>stock_risk, reorder_candidates, forecast_accuracy</li>
         </ul>
       </div>
     </div>
     <p class="fine" style="margin-top:14px;">Full definitions live in <code>app/core.py</code> (<code>METRICS</code> / <code>METRIC_PHRASES</code>). Assistant accepts only exact phrases from that map.</p>
   </div>
-  <div class="foot"><span>VC Retail Analytics · synthetic · Paul Rendleman</span><a href="https://vc.datasharkbi.com/">https://vc.datasharkbi.com</a><span>12 / 12</span></div>
+  <div class="foot"><span>VC Retail Analytics · synthetic · Paul Rendleman</span><a href="https://vc.datasharkbi.com/">https://vc.datasharkbi.com</a><span>13 / 13</span></div>
 </section>
 
 </body>

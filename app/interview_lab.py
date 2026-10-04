@@ -53,27 +53,34 @@ def speakable_board_brief(sections: list[dict]) -> str:
 def run_board_brief(store, dealer=None) -> dict:
     """Execute the board chain and return speakable + per-metric rows/SQL."""
     sections = []
+    errors = []
     t0 = time.perf_counter()
     for name in BOARD_CHAIN:
-        sql, params = metric_sql(name, dealer, store.dialect)
-        rows = store.metric_rows(name, dealer)
-        sections.append(
-            {
-                "metric": name,
-                "description": METRICS[name]["description"],
-                "sql": sql,
-                "parameters": params,
-                "rows": rows[:12],
-                "row_count": len(rows),
-            }
-        )
+        try:
+            sql, params = metric_sql(name, dealer, store.dialect)
+            rows = store.metric_rows(name, dealer)
+            sections.append(
+                {
+                    "metric": name,
+                    "description": METRICS[name]["description"],
+                    "sql": sql,
+                    "parameters": params,
+                    "rows": rows[:12],
+                    "row_count": len(rows),
+                }
+            )
+        except Exception as e:  # noqa: BLE001
+            errors.append({"metric": name, "error": f"{type(e).__name__}: {e}"})
+    if not sections:
+        raise RuntimeError("Board brief failed: " + "; ".join(e["error"] for e in errors))
     spoken = speakable_board_brief(sections)
     return {
         "kind": "board_brief",
         "mode": "chained governed metrics",
         "spoken": spoken,
         "sections": sections,
-        "trace": ["board_brief", *BOARD_CHAIN, "speakable_board_brief"],
+        "errors": errors,
+        "trace": ["board_brief", *[s["metric"] for s in sections], "speakable_board_brief"],
         "backend": getattr(store, "backend", "local"),
         "elapsed_ms": round((time.perf_counter() - t0) * 1000, 1),
     }
