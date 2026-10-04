@@ -262,12 +262,21 @@ def main() -> int:
 
     PROFILE.mkdir(parents=True, exist_ok=True)
     with sync_playwright() as p:
-        context = p.chromium.launch_persistent_context(
-            user_data_dir=str(PROFILE),
-            headless=False,
-            viewport={"width": 1440, "height": 920},
-            args=["--disable-blink-features=AutomationControlled"],
-        )
+        try:
+            context = p.chromium.launch_persistent_context(
+                user_data_dir=str(PROFILE),
+                channel="chrome",
+                headless=False,
+                viewport={"width": 1440, "height": 920},
+                args=["--disable-blink-features=AutomationControlled"],
+            )
+        except Exception:
+            context = p.chromium.launch_persistent_context(
+                user_data_dir=str(PROFILE),
+                headless=False,
+                viewport={"width": 1440, "height": 920},
+                args=["--disable-blink-features=AutomationControlled"],
+            )
         page = context.pages[0] if context.pages else context.new_page()
         try:
             account_id = wait_logged_in(page)

@@ -52,4 +52,16 @@ Earlier full walkthrough remains attributed to `b40c9f6` (~20:45Z). Targeted fix
 
 **Status:** package sent; Tyler signed in via email code (22:16Z). All three reviewer addresses confirmed and permitted.
 
+## Rahul-ready — 2026-10-04
+
+Interview Lab / Market / voice surface for `ragarwal@visualcomfort.com`.
+
+| Item | Status |
+| --- | --- |
+| Live Lab dry-run (Fly origin) | **PASS** — board + evals 20/20 + Cortex compare + scope + plan90 |
+| Market metrics on Snowflake | **PASS** — share expansion, competitor landscape, demand outlook, GM opportunity |
+| Deck / PDF / DEMO_SCRIPT | Updated for Lab · Market · voice (`e2b1cfd`, `9afbee1`) |
+| Access allowlist | Oct 2 **Confirmed permitted**; 2026-10-04 automation blocked by Cloudflare bot interstitial — **eyeball Zero Trust UI before send** |
+| Demo path | `docs/DEMO_SCRIPT.md` · `docs/UPDATE_2026-10-04_ready.md` |
+
 Nothing emailed from this task.
