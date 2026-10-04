@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/style.css?v=20261003c" />
+  <link rel="stylesheet" href="/style.css?v=20261003d" />
 </head>
 <body class="app">
   <header class="top">
@@ -19,6 +19,7 @@
       </div>
       <span id="badge" class="badge">SYNTHETIC</span>
       <span id="backend" class="badge muted"></span>
+      <span id="voice-badge" class="badge muted" hidden>VOICE</span>
     </div>
     <div class="right">
       <span id="backend-switch" class="switch" hidden title="Same governed SQL, two data scales">
@@ -72,9 +73,14 @@
         </div>
         <div>
           <h3>Analytics workflow (demonstrated)</h3>
-          <textarea id="q-proposed" rows="3" placeholder="e.g. show margin percent"></textarea>
-          <button id="ask-proposed" type="button">Ask approved metric</button>
-          <button id="escalate" type="button" class="ghost">Escalate packet</button>
+          <p class="fine" id="voice-status">Voice: mic → warehouse ask → spoken brief (prefers Snowflake when available).</p>
+          <textarea id="q-proposed" rows="3" placeholder="e.g. show margin percent — or use the mic"></textarea>
+          <div class="voice-row">
+            <button id="ask-proposed" type="button">Ask approved metric</button>
+            <button id="mic-ask" type="button" class="ghost" title="Speak a metric prompt">Mic</button>
+            <button id="speak-answer" type="button" class="ghost" title="Speak last warehouse brief" disabled>Speak</button>
+            <button id="escalate" type="button" class="ghost">Escalate packet</button>
+          </div>
           <pre id="out-proposed" class="out"></pre>
         </div>
       </div>
@@ -120,6 +126,6 @@
       <pre id="catalog-out" class="table"></pre>
     </section>
   </main>
-  <script src="/app.js?v=20261003c"></script>
+  <script src="/app.js?v=20261003d"></script>
 </body>
 </html>

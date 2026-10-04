@@ -194,7 +194,14 @@ table.heat th:first-child, table.heat td:first-child { text-align: left; positio
   border-radius: 4px; border-top: 3px solid var(--accent);
 }
 .ask-meta { margin: 0 0 0.4rem; font-size: 0.8rem; color: var(--muted); }
-.ask-insight { margin: 0 0 0.75rem; font-size: 1rem; line-height: 1.4; }
+.voice-row { display: flex; flex-wrap: wrap; gap: 0.45rem; margin: 0.55rem 0 0.75rem; align-items: center; }
+.voice-row button.recording { border-color: var(--err); color: var(--err); background: #f8e8e8; }
+.voice-chip {
+  display: inline-block; margin: 0 0 0.5rem; padding: 0.15rem 0.5rem;
+  border: 1px solid var(--accent); color: var(--accent); font-size: 0.7rem; letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.ask-spoken { margin: 0.35rem 0 0.75rem; font-family: var(--font); font-size: 1.05rem; line-height: 1.4; }
 .warn-text { color: var(--err); }
 .out-rich { background: transparent; color: inherit; padding: 0; white-space: normal; }
 .out-rich .out { margin-top: 0.5rem; }

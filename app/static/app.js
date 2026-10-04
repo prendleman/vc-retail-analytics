@@ -494,8 +494,12 @@ function metricInsight(name, rows) {
 function renderAsk(data) {
   const kind = data.kind || 'unknown';
   const mode = esc(data.mode || '');
-  if (kind === 'metric') {
-    const insight = metricInsight(data.metric, data.rows);
+  const spoken = data.spoken ? `<p class="ask-spoken">${esc(data.spoken)}</p>` : '';
+  const chip = (data.backend || data.source)
+    ? `<span class="voice-chip">${esc((data.backend || '').toUpperCase())}${data.source ? ' · ' + esc(data.source) : ''}${data.spoken ? ' · spoken from warehouse' : ''}</span>`
+    : '';
+  if (kind === 'metric' || kind === 'cortex') {
+    const insight = kind === 'metric' ? metricInsight(data.metric, data.rows) : (data.answer || data.spoken || '');
     const chartKeys = {
       by_channel: ['channel', 'net_sales'],
       by_family: ['family', 'net_sales'],
@@ -518,7 +522,9 @@ function renderAsk(data) {
       viz = barChart(data.rows, ck[0], ck[1], opts);
     }
     return `<div class="ask-card">`
-      + `<p class="ask-meta">${mode} · <strong>${esc(data.metric)}</strong></p>`
+      + chip
+      + `<p class="ask-meta">${mode} · <strong>${esc(data.metric || 'cortex')}</strong></p>`
+      + spoken
       + `<p class="ask-insight">${esc(insight)}</p>`
       + `<p class="fine">${esc(data.description || '')}</p>`
       + viz
@@ -550,11 +556,116 @@ function renderAsk(data) {
   }
   if (kind === 'clarify') {
     return `<div class="ask-card">`
+      + chip
       + `<p class="ask-meta">${mode} · clarify</p>`
+      + spoken
       + `<p class="ask-insight">${esc(data.answer)}</p>`
       + `</div>`;
   }
   return `<pre class="out">${esc(JSON.stringify(data, null, 2))}</pre>`;
+}
+
+let lastSpoken = '';
+let voiceAudio = null;
+let mediaRecorder = null;
+let voiceEnabled = false;
+
+function stopVoiceAudio() {
+  if (voiceAudio) {
+    try { voiceAudio.pause(); } catch (_) {}
+    voiceAudio = null;
+  }
+}
+
+async function playSpoken(text) {
+  if (!text || !voiceEnabled) return;
+  stopVoiceAudio();
+  const res = await fetch('/api/tts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'TTS failed');
+  }
+  const blob = await res.blob();
+  voiceAudio = new Audio(URL.createObjectURL(blob));
+  await voiceAudio.play();
+}
+
+async function preferSnowflakeForVoice() {
+  const health = await api('/api/health');
+  if ((health.backends_available || []).includes('snowflake') && health.backend !== 'snowflake') {
+    try {
+      await switchBackend('snowflake');
+    } catch (_) { /* stay on current */ }
+  }
+}
+
+async function voiceAsk(question) {
+  const out = document.getElementById('out-proposed');
+  out.classList.remove('out-rich');
+  out.textContent = 'Asking warehouse…';
+  await preferSnowflakeForVoice();
+  const data = await api('/api/voice-ask', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question }),
+  });
+  lastSpoken = data.spoken || '';
+  const speakBtn = document.getElementById('speak-answer');
+  if (speakBtn) speakBtn.disabled = !lastSpoken || !voiceEnabled;
+  out.innerHTML = renderAsk(data);
+  out.classList.add('out-rich');
+  if (lastSpoken && voiceEnabled) {
+    try { await playSpoken(lastSpoken); } catch (e) {
+      out.insertAdjacentHTML('beforeend', `<p class="fine warn-text">${esc(e.message)}</p>`);
+    }
+  }
+  if (data.backend) renderBackend({ ...await api('/api/health'), backend: data.backend });
+  return data;
+}
+
+async function toggleMic() {
+  const btn = document.getElementById('mic-ask');
+  if (!voiceEnabled) {
+    alert('Voice is not configured on this host.');
+    return;
+  }
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.stop();
+    return;
+  }
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  const chunks = [];
+  const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
+  mediaRecorder = new MediaRecorder(stream, { mimeType: mime });
+  mediaRecorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+  mediaRecorder.onstop = async () => {
+    btn.classList.remove('recording');
+    btn.textContent = 'Mic';
+    stream.getTracks().forEach(t => t.stop());
+    const blob = new Blob(chunks, { type: mime });
+    const fd = new FormData();
+    fd.append('file', blob, 'clip.webm');
+    const out = document.getElementById('out-proposed');
+    out.textContent = 'Transcribing…';
+    try {
+      const res = await fetch('/api/stt', { method: 'POST', body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'STT failed');
+      const text = (data.text || '').trim();
+      if (!text) throw new Error('No speech detected');
+      document.getElementById('q-proposed').value = text;
+      await voiceAsk(text);
+    } catch (e) {
+      out.textContent = JSON.stringify({ error: e.message }, null, 2);
+    }
+  };
+  mediaRecorder.start();
+  btn.classList.add('recording');
+  btn.textContent = 'Stop';
 }
 
 async function escalate() {
@@ -599,8 +710,20 @@ async function boot() {
     });
   });
   document.getElementById('ask-today').onclick = () => ask('today');
-  document.getElementById('ask-proposed').onclick = () => ask('proposed');
+  document.getElementById('ask-proposed').onclick = async () => {
+    const q = document.getElementById('q-proposed').value.trim();
+    if (!q) return;
+    try {
+      await voiceAsk(q);
+    } catch (e) {
+      await ask('proposed');
+    }
+  };
   document.getElementById('escalate').onclick = escalate;
+  document.getElementById('mic-ask').onclick = () => toggleMic().catch(e => alert(e.message));
+  document.getElementById('speak-answer').onclick = () => {
+    if (lastSpoken) playSpoken(lastSpoken).catch(e => alert(e.message));
+  };
   document.getElementById('catalog-q').addEventListener('change', loadCatalog);
   document.querySelectorAll('#backend-switch button').forEach(b => {
     b.addEventListener('click', () => { if (!b.classList.contains('active')) switchBackend(b.dataset.backend); });
@@ -609,6 +732,20 @@ async function boot() {
     await api('/api/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
     location.href = '/';
   };
+  const health = await api('/api/health');
+  voiceEnabled = !!health.voice;
+  const vb = document.getElementById('voice-badge');
+  if (vb) { vb.hidden = !voiceEnabled; vb.textContent = voiceEnabled ? 'VOICE' : ''; }
+  const vs = document.getElementById('voice-status');
+  if (vs) {
+    vs.textContent = voiceEnabled
+      ? (health.cortex
+        ? 'Voice ready · mic → Snowflake metrics (Cortex fallback for freer questions) → spoken brief.'
+        : 'Voice ready · mic → warehouse metrics → spoken brief. Prefers Snowflake when available.')
+      : 'Voice offline on this host (ElevenLabs key not configured). Typed asks still work.';
+  }
+  document.getElementById('mic-ask').disabled = !voiceEnabled;
+  document.getElementById('speak-answer').disabled = true;
   await loadOverview();
 }
 

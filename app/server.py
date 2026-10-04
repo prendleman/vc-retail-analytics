@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import os
 import threading
 import time
@@ -12,6 +13,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from app import demo_auth
+from app import voice as voice_mod
 from app.core import (
     DB,
     FAQ,
@@ -43,6 +45,8 @@ CTYPES = {
     "jpg": "image/jpeg",
     "jpeg": "image/jpeg",
     "png": "image/png",
+    "mp3": "audio/mpeg",
+    "json": "application/json",
 }
 
 
@@ -178,6 +182,19 @@ class Handler(BaseHTTPRequestHandler):
         stores = getattr(self.server, "stores", None) or {}
         return [b for b in ("local", "snowflake") if stores.get(b)] or [self.server.store.backend]
 
+    def prefer_snowflake_store(self):
+        """Voice analytics prefers the Snowflake scale when the backend is warm."""
+        stores = getattr(self.server, "stores", None) or {}
+        sf = stores.get("snowflake")
+        if not sf:
+            return self.store()
+        try:
+            sf.rows("SELECT dealer_id FROM dealers LIMIT 1")
+            return sf
+        except Exception as e:  # noqa: BLE001
+            print("voice snowflake warm failed:", type(e).__name__, str(e)[:160], flush=True)
+            return self.store()
+
     def same_origin_ok(self):
         origin = self.headers.get("Origin")
         if not origin:
@@ -230,6 +247,8 @@ class Handler(BaseHTTPRequestHandler):
                             "synthetic": True,
                             "label": "VC Retail Analytics — synthetic demo",
                             "data_scale": DATA_SCALE[s.backend],
+                            "voice": voice_mod.configured(),
+                            "cortex": voice_mod.cortex_configured(),
                         }
                     )
                 dealer = self.scope(q)
@@ -381,6 +400,17 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Location", "/login")
                 self.end_headers()
                 return
+            if u.path.startswith("/audio/"):
+                name = Path(u.path).name
+                if not name or name != Path(u.path[1:]).name or ".." in u.path:
+                    return self.send({"error": "Not found"}, 404)
+                file = (STATIC / "audio" / name).resolve()
+                if not str(file).startswith(str((STATIC / "audio").resolve())) or not file.is_file():
+                    return self.send({"error": "Not found"}, 404)
+                ext = file.suffix[1:]
+                if ext not in CTYPES:
+                    return self.send({"error": "Not found"}, 404)
+                return self.send(file.read_bytes(), content_type=CTYPES[ext])
             if u.path not in ALLOWED_STATIC:
                 return self.send({"error": "Not found"}, 404)
             file = STATIC / Path(ALLOWED_STATIC[u.path])
@@ -397,14 +427,159 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if not self.same_origin_ok():
                 raise PermissionError("Cross-origin request rejected")
-            if "application/json" not in self.headers.get("Content-Type", ""):
-                raise ValueError("JSON required")
+            path = urlparse(self.path).path
+            ctype = self.headers.get("Content-Type", "")
             size = int(self.headers.get("Content-Length", "0"))
-            if size > 8192:
+
+            if path == "/api/stt":
+                if not self.session() and not self.server.dealer:
+                    raise PermissionError("Login required")
+                if not voice_mod.configured():
+                    return self.send({"error": "Voice is not configured on this host"}, 503)
+                if size <= 0 or size > 2_500_000:
+                    raise ValueError("Audio payload missing or too large")
+                raw = self.rfile.read(size)
+                # Parse multipart: find file part after double CRLF following Content-Type header of the part
+                filename, content_type, audio = "clip.webm", "audio/webm", raw
+                if "multipart/form-data" in ctype:
+                    m = re.search(rb'name="file";\s*filename="([^"]*)"[^\r\n]*\r\nContent-Type:\s*([^\r\n]+)\r\n\r\n', raw, re.I)
+                    if not m:
+                        m = re.search(rb'name="file";\s*filename="([^"]*)"[^\r\n]*\r\n\r\n', raw, re.I)
+                        content_type = "application/octet-stream"
+                        if m:
+                            filename = m.group(1).decode("utf-8", "ignore") or filename
+                            start = m.end()
+                            end = raw.rfind(b"--")
+                            audio = raw[start:end].rstrip(b"\r\n")
+                    else:
+                        filename = m.group(1).decode("utf-8", "ignore") or filename
+                        content_type = m.group(2).decode("ascii", "ignore").strip() or content_type
+                        start = m.end()
+                        # trim trailing boundary
+                        end = raw.find(b"\r\n--", start)
+                        audio = raw[start:end if end > 0 else None]
+                text = voice_mod.transcribe(audio, filename=filename, content_type=content_type)
+                return self.send({"text": text, "ok": True})
+
+            if "application/json" not in ctype:
+                raise ValueError("JSON required")
+            max_body = 32_000 if path in ("/api/tts", "/api/voice-ask") else 8192
+            if size > max_body:
                 raise ValueError("Request too large")
             body = json.loads(self.rfile.read(size) or b"{}")
             s = self.store()
-            path = urlparse(self.path).path
+            if path == "/api/tts":
+                if not self.session() and not self.server.dealer:
+                    raise PermissionError("Login required")
+                if not voice_mod.configured():
+                    return self.send({"error": "Voice is not configured on this host"}, 503)
+                mp3 = voice_mod.synthesize(body.get("text") or "")
+                return self.send(mp3, content_type="audio/mpeg")
+            if path == "/api/voice-ask":
+                if not self.session() and not self.server.dealer:
+                    raise PermissionError("Login required")
+                question = (body.get("question") or "").strip()
+                if not question:
+                    raise ValueError("question required")
+                # STT often appends punctuation; closed metric router is exact-match on lowercase text.
+                q_metric = re.sub(r"[?.!,;:]+$", "", question.strip().lower()).strip()
+                dealer = self.scope({"dealer": [body.get("dealer", "")]})
+                s = self.prefer_snowflake_store()
+                # Prefer exact metric phrases (same governance as /api/ask)
+                try:
+                    name = interpret_metric(q_metric)
+                except ValueError as err:
+                    if s.backend == "snowflake" and voice_mod.cortex_configured():
+                        try:
+                            gen = voice_mod.cortex_generate_sql(question)
+                            sql = gen.get("sql")
+                            if not sql:
+                                return self.send(
+                                    {
+                                        "mode": "voice analytics",
+                                        "kind": "clarify",
+                                        "answer": gen.get("text") or str(err),
+                                        "suggestions": gen.get("suggestions") or [],
+                                        "backend": s.backend,
+                                        "source": "cortex",
+                                        "spoken": (gen.get("text") or str(err))[:480],
+                                        "trace": ["voice_ask", "cortex_no_sql", "clarify"],
+                                    },
+                                    400,
+                                )
+                            rows = voice_mod.execute_cortex_select(s, sql)
+                            spoken = voice_mod.speakable_cortex(question, rows, sql)
+                            s.audit(dealer, "cortex:" + question[:80], len(rows))
+                            return self.send(
+                                {
+                                    "mode": "voice analytics (Cortex Analyst + reader execute)",
+                                    "kind": "cortex",
+                                    "answer": gen.get("text") or spoken,
+                                    "sql": sql,
+                                    "rows": rows,
+                                    "spoken": spoken,
+                                    "backend": s.backend,
+                                    "source": "cortex",
+                                    "trace": [
+                                        "voice_ask",
+                                        "prefer_snowflake",
+                                        "cortex_analyst",
+                                        "execute_select",
+                                        "speakable_brief",
+                                    ],
+                                }
+                            )
+                        except Exception as e:  # noqa: BLE001
+                            print("voice cortex failed:", type(e).__name__, str(e)[:200], flush=True)
+                            return self.send(
+                                {
+                                    "mode": "voice analytics",
+                                    "kind": "clarify",
+                                    "answer": str(err),
+                                    "backend": s.backend,
+                                    "source": "metric",
+                                    "spoken": str(err)[:480],
+                                    "trace": ["voice_ask", "metric_miss", "cortex_failed"],
+                                },
+                                400,
+                            )
+                    return self.send(
+                        {
+                            "mode": "voice analytics",
+                            "kind": "clarify",
+                            "answer": str(err),
+                            "backend": s.backend,
+                            "source": "metric",
+                            "spoken": str(err)[:480],
+                            "trace": ["voice_ask", "resolve_verified_question", "clarify"],
+                        },
+                        400,
+                    )
+                sql, p = metric_sql(name, dealer, s.dialect)
+                rows = s.rows(sql, p)
+                s.audit(dealer, name, len(rows))
+                spoken = voice_mod.speakable_metric(name, rows, METRICS[name]["description"])
+                return self.send(
+                    {
+                        "mode": "voice analytics (governed metric)",
+                        "kind": "metric",
+                        "metric": name,
+                        "description": METRICS[name]["description"],
+                        "sql": sql,
+                        "parameters": p,
+                        "rows": rows,
+                        "spoken": spoken,
+                        "backend": s.backend,
+                        "source": "metric",
+                        "trace": [
+                            "voice_ask",
+                            "prefer_snowflake",
+                            "resolve_verified_question",
+                            "execute_read_only_metric",
+                            "speakable_brief",
+                        ],
+                    }
+                )
             if path == "/api/login":
                 sess = demo_auth.authenticate(body.get("username"), body.get("password"))
                 if not sess:

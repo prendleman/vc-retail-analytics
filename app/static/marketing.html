@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/style.css?v=20261003c" />
+  <link rel="stylesheet" href="/style.css?v=20261003d" />
 </head>
 <body class="marketing marketing-v2">
   <div class="hero-bleed">
@@ -21,6 +21,7 @@
       <p class="cta-row">
         <a class="btn" href="/login">Enter demo</a>
         <a class="btn ghost-light" href="#how">How to use</a>
+        <button type="button" class="btn ghost-light" id="listen-intro">Listen to intro</button>
       </p>
       <p class="fine">Not Visual Comfort production systems. Not commissioned client work. No use of Visual Comfort trademarks beyond nominative reference.</p>
       <p class="fine">Cloudflare Access email OTP may be required. Prefer login <strong>operator</strong> / <strong>vc-demo</strong> for full analytics.</p>
@@ -77,5 +78,18 @@
   <footer class="site-foot">
     <p>Paul Rendleman · Independent portfolio piece · <a href="https://vc.datasharkbi.com/">vc.datasharkbi.com</a></p>
   </footer>
+  <script>
+    (function () {
+      const btn = document.getElementById('listen-intro');
+      if (!btn) return;
+      let audio;
+      btn.addEventListener('click', () => {
+        if (audio && !audio.paused) { audio.pause(); audio.currentTime = 0; btn.textContent = 'Listen to intro'; return; }
+        audio = new Audio('/audio/intro.mp3');
+        audio.play().then(() => { btn.textContent = 'Stop intro'; }).catch(() => { btn.textContent = 'Intro unavailable'; });
+        audio.onended = () => { btn.textContent = 'Listen to intro'; };
+      });
+    })();
+  </script>
 </body>
 </html>
