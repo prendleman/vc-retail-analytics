@@ -213,10 +213,33 @@ table.heat th:first-child, table.heat td:first-child { text-align: left; positio
 .warn-text { color: var(--err); }
 .out-rich { background: transparent; color: inherit; padding: 0; white-space: normal; }
 .out-rich .out { margin-top: 0.5rem; }
+.lab-grid {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  margin-top: 1.25rem;
+}
+.lab-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  padding: 1.1rem 1.2rem 1.25rem;
+  border-top: 3px solid var(--accent);
+}
+.lab-card-wide { grid-column: 1 / -1; }
+.lab-card h3 { margin: 0 0 0.35rem; font-family: var(--font); font-weight: 500; font-size: 1.25rem; }
+.lab-card textarea { width: 100%; margin-top: 0.5rem; }
+.eval-pass { color: #2f6b3c; }
+.eval-fail { color: var(--err); }
+.scope-btn.active { border-color: var(--accent); color: var(--accent); background: #f3ebe0; }
+.plan-phase { margin: 1rem 0 0; padding-top: 0.75rem; border-top: 1px solid var(--line); }
+.plan-phase h4 { margin: 0 0 0.35rem; font-size: 1rem; }
+.plan-phase ul { margin: 0.25rem 0 0; padding-left: 1.1rem; }
+.compare-cols { display: grid; gap: 0.75rem; grid-template-columns: 1fr 1fr; }
 @media (max-width: 800px) {
   .overview-grid { grid-template-columns: 1fr; }
   .bar-row { grid-template-columns: 5.5rem 1fr 4.4rem; }
   .brand-sub { display: none; }
+  .compare-cols { grid-template-columns: 1fr; }
 }
 
 /* Public marketing v2 — Visual Comfort–flavored */

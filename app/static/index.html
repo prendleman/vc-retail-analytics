@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/style.css?v=20261004e" />
+  <link rel="stylesheet" href="/style.css?v=20261004f" />
 </head>
 <body class="app">
   <header class="top">
@@ -34,6 +34,7 @@
     <button data-tab="overview" class="active">Overview</button>
     <button data-tab="analytics">Analytics</button>
     <button data-tab="assistant">Assistant</button>
+    <button data-tab="lab">Lab</button>
     <button data-tab="catalog">Catalog</button>
   </nav>
   <main>
@@ -43,6 +44,7 @@
       <p class="fine lede-app">Session-scoped KPIs from governed warehouse metrics — Consumer, Trade, and Contract sell-through across the synthetic dealer network.</p>
       <div class="voice-row overview-actions">
         <button id="brief-me" type="button" class="ghost" title="Speak a live Snowflake portfolio brief">Brief me (Snowflake)</button>
+        <button id="board-brief" type="button" class="ghost" title="Chained share + GM + forecast board narrative">Board brief</button>
         <span id="brief-status" class="fine"></span>
       </div>
       <div id="summary" class="stats"></div>
@@ -136,6 +138,61 @@
         </ul>
       </details>
     </section>
+    <section id="lab" class="tab" hidden>
+      <p class="eyebrow">Interview Lab</p>
+      <h2>For the AI Engineer conversation</h2>
+      <p class="fine lede-app">Board brief · golden evals · Cortex vs governed · session scope (RAP story) · 90-day plan. Synthetic demo aids — every number still comes from SQL.</p>
+
+      <div class="lab-grid">
+        <article class="lab-card">
+          <h3>1 · Board brief</h3>
+          <p class="fine">Chains share expansion → GM lift → forecast vs run-rate → growth momentum into one spoken narrative.</p>
+          <div class="voice-row">
+            <button type="button" id="lab-board">Run board brief</button>
+            <button type="button" id="lab-board-speak" class="ghost" disabled>Speak</button>
+          </div>
+          <div id="lab-board-out" class="out out-rich"></div>
+        </article>
+
+        <article class="lab-card">
+          <h3>2 · Eval harness</h3>
+          <p class="fine">20 golden prompts: FAQ · metric · voice fuzzy · refuse. Pass/fail + latency — measurement culture for the assistant.</p>
+          <div class="voice-row">
+            <button type="button" id="lab-evals">Run evals</button>
+            <span id="lab-evals-summary" class="fine"></span>
+          </div>
+          <div id="lab-evals-out" class="out out-rich"></div>
+        </article>
+
+        <article class="lab-card">
+          <h3>3 · Cortex vs governed</h3>
+          <p class="fine">Same question on both paths. Prefer governed for production; Cortex is discovery/fallback (Snowflake session).</p>
+          <textarea id="lab-compare-q" rows="2" placeholder="e.g. show margin percent — or a freer warehouse question"></textarea>
+          <div class="voice-row">
+            <button type="button" id="lab-compare">Compare paths</button>
+          </div>
+          <div id="lab-compare-out" class="out out-rich"></div>
+        </article>
+
+        <article class="lab-card">
+          <h3>4 · Scope / RAP story</h3>
+          <p class="fine">Operator-only: pin session to a dealer (app-layer mirror of Snowflake RAP). Same asks, fewer rows.</p>
+          <div class="voice-row" id="lab-scope-row">
+            <button type="button" data-scope="" class="ghost scope-btn active">All dealers</button>
+            <button type="button" data-scope="DLR-0001" class="ghost scope-btn">DLR-0001</button>
+            <button type="button" data-scope="DLR-0002" class="ghost scope-btn">DLR-0002</button>
+          </div>
+          <p class="fine" id="lab-scope-status">Sign in as <strong>operator</strong> to switch scope.</p>
+          <div id="lab-scope-out" class="out out-rich"></div>
+        </article>
+
+        <article class="lab-card lab-card-wide">
+          <h3>5 · What I'd ship in 90 days</h3>
+          <p class="fine">Grounding → assist + measure → harden. Not a commitment — how I'd approach Visual Comfort's stack.</p>
+          <div id="lab-plan-out" class="out out-rich"></div>
+        </article>
+      </div>
+    </section>
     <section id="catalog" class="tab" hidden>
       <p class="eyebrow">Product language</p>
       <h2>Synthetic catalog</h2>
@@ -144,6 +201,6 @@
       <pre id="catalog-out" class="table"></pre>
     </section>
   </main>
-  <script src="/app.js?v=20261004e"></script>
+  <script src="/app.js?v=20261004f"></script>
 </body>
 </html>

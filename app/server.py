@@ -15,6 +15,7 @@ from urllib.parse import parse_qs, urlparse
 from app import demo_auth
 from app import voice as voice_mod
 from app import competitors as competitors_mod
+from app import interview_lab
 from app.core import (
     DB,
     FAQ,
@@ -235,6 +236,28 @@ class Handler(BaseHTTPRequestHandler):
                             "session": sess,
                             "accounts": demo_auth.public_accounts(),
                             "password_hint": demo_auth.DEMO_PASSWORD,
+                            "can_demo_scope": bool(sess and sess.get("role") == "operator"),
+                        }
+                    )
+                if u.path == "/api/plan-90":
+                    if not self.session() and not self.server.dealer:
+                        raise PermissionError("Login required")
+                    return self.send(interview_lab.plan_90())
+                if u.path == "/api/evals/cases":
+                    if not self.session() and not self.server.dealer:
+                        raise PermissionError("Login required")
+                    return self.send(
+                        {
+                            "cases": [
+                                {
+                                    "id": c["id"],
+                                    "lane": c.get("lane"),
+                                    "question": c["question"],
+                                    "expect_kind": c["expect_kind"],
+                                }
+                                for c in interview_lab.EVAL_CASES
+                            ],
+                            "total": len(interview_lab.EVAL_CASES),
                         }
                     )
                 if u.path == "/api/health":
@@ -479,7 +502,10 @@ class Handler(BaseHTTPRequestHandler):
 
             if "application/json" not in ctype:
                 raise ValueError("JSON required")
-            max_body = 32_000 if path in ("/api/tts", "/api/voice-ask", "/api/voice-brief") else 8192
+            max_body = 32_000 if path in (
+                "/api/tts", "/api/voice-ask", "/api/voice-brief", "/api/voice-board-brief",
+                "/api/evals/run", "/api/compare",
+            ) else 8192
             if size > max_body:
                 raise ValueError("Request too large")
             body = json.loads(self.rfile.read(size) or b"{}")
@@ -491,6 +517,59 @@ class Handler(BaseHTTPRequestHandler):
                     return self.send({"error": "Voice is not configured on this host"}, 503)
                 mp3 = voice_mod.synthesize(body.get("text") or "")
                 return self.send(mp3, content_type="audio/mpeg")
+            if path == "/api/voice-board-brief":
+                if not self.session() and not self.server.dealer:
+                    raise PermissionError("Login required")
+                dealer = self.scope({"dealer": [body.get("dealer", "")]})
+                # Prefer Snowflake when available so spoken board numbers match warehouse scale
+                cookie = None
+                try:
+                    if "snowflake" in self.backends_available():
+                        s = self.require_snowflake_store()
+                        cookie = f"{BACKEND_COOKIE}=snowflake; Path=/; Max-Age=43200; SameSite=Lax; HttpOnly"
+                except RuntimeError:
+                    s = self.store()
+                payload = interview_lab.run_board_brief(s, dealer)
+                s.audit(dealer, "voice_board_brief", len(payload.get("sections") or []))
+                return self.send(payload, extra_headers={"Set-Cookie": cookie} if cookie else None)
+            if path == "/api/evals/run":
+                if not self.session() and not self.server.dealer:
+                    raise PermissionError("Login required")
+                dealer = self.scope({"dealer": [body.get("dealer", "")]})
+                ids = body.get("case_ids")
+                report = interview_lab.run_evals(s, dealer, ids if isinstance(ids, list) else None)
+                s.audit(dealer, "evals", report["passed"])
+                return self.send(report)
+            if path == "/api/compare":
+                if not self.session() and not self.server.dealer:
+                    raise PermissionError("Login required")
+                dealer = self.scope({"dealer": [body.get("dealer", "")]})
+                question = (body.get("question") or "").strip()
+                # Compare uses current session backend; Cortex requires snowflake
+                payload = interview_lab.compare_governed_cortex(s, question, dealer)
+                s.audit(dealer, "compare", 1)
+                return self.send(payload)
+            if path == "/api/demo-scope":
+                sess = self.session()
+                if not sess:
+                    raise PermissionError("Login required")
+                if sess.get("role") != "operator":
+                    raise PermissionError("Only the operator demo user can switch scope (RAP story)")
+                want = (body.get("dealer") or "").strip().upper() or None
+                if want:
+                    if not self.store().rows("SELECT dealer_id FROM dealers WHERE dealer_id=?", [want]):
+                        raise ValueError("Unknown or inaccessible dealer")
+                    sess = {**sess, "dealer": want, "label": f"Operator · scoped {want} (RAP demo)"}
+                else:
+                    sess = {**sess, "dealer": None, "label": "Internal analyst (all dealers)"}
+                return self.send(
+                    {
+                        "ok": True,
+                        "session": sess,
+                        "note": "App session scope — mirrors Snowflake RAP dealer pin. Evidence: docs/evidence RAP dual-principal.",
+                    },
+                    extra_headers={"Set-Cookie": demo_auth.issue_cookie(sess)},
+                )
             if path == "/api/voice-ask":
                 if not self.session() and not self.server.dealer:
                     raise PermissionError("Login required")

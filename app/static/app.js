@@ -1058,6 +1058,166 @@ async function loadCatalog() {
   document.getElementById('catalog-out').innerHTML = htmlTable(rows, 40);
 }
 
+let lastBoardSpoken = '';
+
+async function runBoardBrief({ speak } = {}) {
+  const out = document.getElementById('lab-board-out') || document.getElementById('brief-status');
+  const speakBtn = document.getElementById('lab-board-speak');
+  const status = document.getElementById('brief-status');
+  primeVoicePlayback();
+  if (out && out.id === 'lab-board-out') out.textContent = 'Running board chain…';
+  if (status) status.textContent = 'Board brief…';
+  try {
+    try { await requireSnowflakeForVoice(); } catch (_) { /* local still runs metrics */ }
+    const data = await api('/api/voice-board-brief', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    lastBoardSpoken = data.spoken || '';
+    lastSpoken = lastBoardSpoken;
+    const sa = document.getElementById('speak-answer');
+    if (sa) sa.disabled = !lastSpoken;
+    if (speakBtn) speakBtn.disabled = !lastBoardSpoken;
+    if (data.backend) renderBackend({ ...(await api('/api/health')), backend: data.backend });
+    const sections = (data.sections || []).map(s => {
+      const r0 = (s.rows || [])[0] || {};
+      return `<div class="ask-card"><p class="ask-meta">${esc(s.metric)} · ${s.row_count} rows</p>`
+        + `<p class="fine">${esc(s.description || '')}</p>`
+        + htmlTable(s.rows || [], 5)
+        + `</div>`;
+    }).join('');
+    const html = `<div class="ask-card"><p class="ask-meta">board brief · ${esc(data.backend || '')} · ${num(data.elapsed_ms)} ms</p>`
+      + `<p class="ask-spoken">${esc(data.spoken || '')}</p>`
+      + `<p class="fine">${esc((data.trace || []).join(' → '))}</p></div>`
+      + sections;
+    if (document.getElementById('lab-board-out')) {
+      document.getElementById('lab-board-out').innerHTML = html;
+    }
+    if (status) status.textContent = (data.spoken || '').slice(0, 140) + ((data.spoken || '').length > 140 ? '…' : '');
+    if (speak && lastBoardSpoken && voiceEnabled) {
+      try { await playSpoken(lastBoardSpoken); } catch (e) {
+        if (status) status.textContent = `${status.textContent} — ${e.message}`;
+      }
+    }
+    return data;
+  } catch (e) {
+    if (document.getElementById('lab-board-out')) {
+      document.getElementById('lab-board-out').textContent = JSON.stringify({ error: e.message }, null, 2);
+    }
+    if (status) status.textContent = e.message;
+    throw e;
+  }
+}
+
+function renderEvalReport(report) {
+  const sum = document.getElementById('lab-evals-summary');
+  if (sum) {
+    sum.innerHTML = `<span class="${report.failed ? 'eval-fail' : 'eval-pass'}">${report.passed}/${report.total} passed (${pct(report.pass_pct)})</span> · ${num(report.elapsed_ms)} ms · ${esc(report.backend || '')}`;
+  }
+  const rows = (report.results || []).map(r => ({
+    id: r.id,
+    lane: r.lane,
+    ok: r.ok ? 'PASS' : 'FAIL',
+    ms: r.elapsed_ms,
+    question: r.question,
+    detail: r.got_metric || r.got_source || r.got_kind || r.error || '',
+  }));
+  document.getElementById('lab-evals-out').innerHTML = htmlTable(rows, 40)
+    + `<p class="fine">${esc(report.note || '')}</p>`;
+}
+
+async function runLabEvals() {
+  document.getElementById('lab-evals-out').textContent = 'Running golden prompts…';
+  const report = await api('/api/evals/run', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}',
+  });
+  renderEvalReport(report);
+}
+
+async function runLabCompare() {
+  const q = document.getElementById('lab-compare-q').value.trim() || 'show margin percent';
+  document.getElementById('lab-compare-out').textContent = 'Comparing…';
+  const data = await api('/api/compare', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question: q }),
+  });
+  const side = (label, block) => {
+    if (!block) return `<div class="ask-card"><p class="ask-meta">${label}</p><p class="fine">—</p></div>`;
+    if (!block.ok) {
+      return `<div class="ask-card"><p class="ask-meta">${label} · miss</p><p class="fine warn-text">${esc(block.error || 'failed')}</p>`
+        + `<p class="fine">${esc((block.trace || []).join(' → '))}</p></div>`;
+    }
+    return `<div class="ask-card"><p class="ask-meta">${label} · ${num(block.elapsed_ms)} ms</p>`
+      + (block.metric ? `<p class="fine"><strong>${esc(block.metric)}</strong> — ${esc(block.description || '')}</p>` : '')
+      + (block.spoken ? `<p class="ask-spoken">${esc(block.spoken)}</p>` : '')
+      + htmlTable(block.rows || [], 6)
+      + `<details><summary>SQL</summary><pre class="out">${esc(block.sql || '')}</pre></details>`
+      + `<p class="fine">${esc((block.trace || []).join(' → '))}</p></div>`;
+  };
+  document.getElementById('lab-compare-out').innerHTML =
+    `<p class="fine">${esc(data.delta_note || '')}</p>`
+    + `<div class="compare-cols">${side('Governed', data.governed)}${side('Cortex', data.cortex)}</div>`;
+}
+
+async function setDemoScope(dealer) {
+  const data = await api('/api/demo-scope', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ dealer: dealer || '' }),
+  });
+  document.getElementById('who').textContent = data.session.label || data.session.username;
+  document.querySelectorAll('.scope-btn').forEach(b => {
+    b.classList.toggle('active', (b.dataset.scope || '') === (dealer || ''));
+  });
+  document.getElementById('lab-scope-status').textContent = data.note || 'Scope updated.';
+  // Prove scope with a quick portfolio count
+  const port = await api('/api/metric?name=portfolio');
+  document.getElementById('lab-scope-out').innerHTML =
+    `<div class="ask-card"><p class="ask-meta">portfolio under current scope</p>`
+    + `<p class="ask-insight">${(port.rows || []).length} dealer rows returned</p>`
+    + htmlTable(port.rows || [], 8)
+    + `</div>`;
+  analyticsCache = null;
+  await loadOverview();
+}
+
+async function loadPlan90() {
+  const plan = await api('/api/plan-90');
+  const phases = (plan.phases || []).map(p =>
+    `<div class="plan-phase"><h4>${esc(p.days)} — ${esc(p.theme)}</h4><ul>`
+    + (p.bullets || []).map(b => `<li>${esc(b)}</li>`).join('')
+    + `</ul></div>`
+  ).join('');
+  const nong = (plan.non_goals || []).map(b => `<li>${esc(b)}</li>`).join('');
+  const map = (plan.demo_map || []).map(b => `<li>${esc(b)}</li>`).join('');
+  document.getElementById('lab-plan-out').innerHTML =
+    `<div class="ask-card"><p class="ask-meta">${esc(plan.audience || '')}</p>`
+    + `<p class="ask-spoken">${esc(plan.title)}</p>`
+    + `<p class="fine">${esc(plan.subtitle || '')}</p>`
+    + phases
+    + `<div class="plan-phase"><h4>Non-goals</h4><ul>${nong}</ul></div>`
+    + `<div class="plan-phase"><h4>How this demo maps</h4><ul>${map}</ul></div>`
+    + `</div>`;
+}
+
+async function showLab() {
+  await loadPlan90().catch(() => {});
+  const sess = await api('/api/session');
+  const can = !!sess.can_demo_scope;
+  document.querySelectorAll('.scope-btn').forEach(b => { b.disabled = !can; });
+  document.getElementById('lab-scope-status').textContent = can
+    ? 'Operator scope switch ready — pin a dealer to mirror RAP.'
+    : 'Sign in as operator / vc-demo to switch scope (dealer logins are already pinned).';
+  const cur = (sess.session && sess.session.dealer) || '';
+  document.querySelectorAll('.scope-btn').forEach(b => {
+    b.classList.toggle('active', (b.dataset.scope || '') === cur);
+  });
+}
+
 async function boot() {
   const sess = await api('/api/session');
   if (!sess.authenticated) { location.href = '/login'; return; }
@@ -1066,6 +1226,7 @@ async function boot() {
     showTab(b.dataset.tab);
     if (b.dataset.tab === 'analytics') loadAnalytics();
     if (b.dataset.tab === 'catalog') loadCatalog();
+    if (b.dataset.tab === 'lab') showLab().catch(e => alert(e.message));
   }));
   document.querySelectorAll('#analytics-subnav button').forEach(b => {
     b.addEventListener('click', () => {
@@ -1102,6 +1263,26 @@ async function boot() {
     await api('/api/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
     location.href = '/';
   };
+  const boardBtn = document.getElementById('board-brief');
+  if (boardBtn) {
+    boardBtn.onclick = () => {
+      primeVoicePlayback();
+      runBoardBrief({ speak: true }).catch(e => alert(e.message));
+    };
+  }
+  document.getElementById('lab-board').onclick = () => {
+    primeVoicePlayback();
+    runBoardBrief({ speak: true }).catch(e => alert(e.message));
+  };
+  document.getElementById('lab-board-speak').onclick = () => {
+    primeVoicePlayback();
+    if (lastBoardSpoken) playSpoken(lastBoardSpoken).catch(e => alert(e.message));
+  };
+  document.getElementById('lab-evals').onclick = () => runLabEvals().catch(e => alert(e.message));
+  document.getElementById('lab-compare').onclick = () => runLabCompare().catch(e => alert(e.message));
+  document.querySelectorAll('.scope-btn').forEach(b => {
+    b.addEventListener('click', () => setDemoScope(b.dataset.scope || '').catch(e => alert(e.message)));
+  });
   const health = await api('/api/health');
   voiceEnabled = !!health.voice;
   const snowflakeOk = (health.backends_available || []).includes('snowflake');
