@@ -280,7 +280,7 @@ class Handler(BaseHTTPRequestHandler):
                     return self.send(rows)
                 if u.path == "/api/summary":
                     row = s.rows(
-                        "SELECT COUNT(*) AS skus, COALESCE(SUM(units_sold),0) AS units_sold, "
+                        "SELECT COUNT(DISTINCT sku_id) AS skus, COALESCE(SUM(units_sold),0) AS units_sold, "
                         "COALESCE(SUM(net_sales_cents),0)/100.0 AS net_sales, "
                         "COALESCE(SUM(margin_cents),0)/100.0 AS margin, "
                         "COALESCE(SUM(on_hand),0) AS on_hand FROM silver_facts" + where,
@@ -352,7 +352,7 @@ class Handler(BaseHTTPRequestHandler):
                         "synthetic": True,
                         "dealer_scope": dealer or "all",
                         "summary": s.rows(
-                            "SELECT COUNT(*) AS skus, COALESCE(SUM(units_sold),0) AS units_sold, "
+                            "SELECT COUNT(DISTINCT sku_id) AS skus, COALESCE(SUM(units_sold),0) AS units_sold, "
                             "COALESCE(SUM(net_sales_cents),0)/100.0 AS net_sales, "
                             "COALESCE(SUM(margin_cents),0)/100.0 AS margin, "
                             "ROUND(100.0 * COALESCE(SUM(margin_cents),0) / NULLIF(SUM(net_sales_cents),0), 1) AS margin_pct "
