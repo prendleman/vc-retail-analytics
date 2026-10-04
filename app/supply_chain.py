@@ -577,6 +577,34 @@ SC_METRICS = {
             "GROUP BY f.family ORDER BY wmape_pct DESC"
         ),
     },
+    "demand_outlook": {
+        "description": "Forward demand outlook: forecast units by family for the next 1–3 months (synthetic market forecast).",
+        "sql": (
+            "SELECT p.family, df.month, SUM(df.forecast_units) AS forecast_units, "
+            "MAX(df.forecast_method) AS forecast_method "
+            "FROM demand_forecast df JOIN products p ON p.sku_id = df.sku_id "
+            "WHERE df.month > '2026-09' "
+            "GROUP BY p.family, df.month ORDER BY df.month, forecast_units DESC"
+        ),
+    },
+    "forecast_vs_runrate": {
+        "description": "Next-3-month forecast vs trailing-3-month actual run-rate by family (gap = market call vs recent sell-through).",
+        "sql": (
+            "WITH run AS ("
+            "  SELECT family, SUM(units_sold) AS units_3m FROM silver_monthly "
+            "  WHERE month > '2026-06' AND month <= '2026-09' GROUP BY family"
+            "), fc AS ("
+            "  SELECT p.family, SUM(df.forecast_units) AS forecast_3m "
+            "  FROM demand_forecast df JOIN products p ON p.sku_id = df.sku_id "
+            "  WHERE df.month > '2026-09' AND df.month <= '2026-12' GROUP BY p.family"
+            ") "
+            "SELECT r.family, r.units_3m AS trailing_3m_units, f.forecast_3m AS next_3m_forecast, "
+            "ROUND(100.0 * (f.forecast_3m - r.units_3m) / NULLIF(r.units_3m, 0), 1) AS outlook_gap_pct, "
+            "CASE WHEN f.forecast_3m > r.units_3m * 1.08 THEN 'Build ahead' "
+            "WHEN f.forecast_3m < r.units_3m * 0.92 THEN 'Soft outlook' ELSE 'In line' END AS signal "
+            "FROM run r JOIN fc f ON f.family = r.family ORDER BY outlook_gap_pct DESC"
+        ),
+    },
     "bom_cost_rollup": {
         "description": "BOM material cost vs standard cost per SKU; flags over-standard roll-ups and longest component lead.",
         "sql": (
@@ -627,6 +655,8 @@ SC_PHRASES = {
     "show mrp exceptions": "mrp_exceptions",
     "show shortages": "mrp_shortages",
     "show forecast accuracy": "forecast_accuracy",
+    "show demand outlook": "demand_outlook",
+    "show forecast vs runrate": "forecast_vs_runrate",
     "show bom cost": "bom_cost_rollup",
     "show component risk": "component_risk",
     "show work orders": "work_order_status",
@@ -652,6 +682,24 @@ SNOWFLAKE_OVERRIDES = {
         "ROUND(100.0 * (SUM(f.forecast_units) - SUM(a.actual_units)) / NULLIF(SUM(a.actual_units), 0), 1) AS bias_pct "
         "FROM f JOIN a ON a.family = f.family AND a.month = f.month GROUP BY f.family ORDER BY wmape_pct DESC"
     ),
+    "demand_outlook": (
+        "SELECT family, month, forecast_units, 'gold' AS forecast_method "
+        "FROM gold_forecast_family_month WHERE month > '2026-09' ORDER BY month, forecast_units DESC"
+    ),
+    "forecast_vs_runrate": (
+        "WITH run AS ("
+        "  SELECT family, SUM(units_sold) AS units_3m FROM silver_monthly "
+        "  WHERE month > '2026-06' AND month <= '2026-09' GROUP BY family"
+        "), fc AS ("
+        "  SELECT family, SUM(forecast_units) AS forecast_3m FROM gold_forecast_family_month "
+        "  WHERE month > '2026-09' AND month <= '2026-12' GROUP BY family"
+        ") "
+        "SELECT r.family, r.units_3m AS trailing_3m_units, f.forecast_3m AS next_3m_forecast, "
+        "ROUND(100.0 * (f.forecast_3m - r.units_3m) / NULLIF(r.units_3m, 0), 1) AS outlook_gap_pct, "
+        "CASE WHEN f.forecast_3m > r.units_3m * 1.08 THEN 'Build ahead' "
+        "WHEN f.forecast_3m < r.units_3m * 0.92 THEN 'Soft outlook' ELSE 'In line' END AS signal "
+        "FROM run r JOIN fc f ON f.family = r.family ORDER BY outlook_gap_pct DESC"
+    ),
     "mrp_exceptions": (
         "SELECT dc.dc_id, dc.name AS dc, g.exception_code, g.skus, g.planned_units, g.net_requirement "
         "FROM gold_mrp_exception_summary g JOIN distribution_centers dc ON dc.dc_id = g.dc_id "
@@ -669,5 +717,5 @@ SNOWFLAKE_OVERRIDES = {
 CORPORATE_METRICS = {
     "po_past_due", "inbound_pipeline", "vendor_otif_detail", "vendor_defects", "vendor_concentration",
     "freight_cost", "dc_inventory_health", "inventory_trend", "mrp_exceptions", "mrp_shortages",
-    "forecast_accuracy", "bom_cost_rollup", "work_order_status",
+    "forecast_accuracy", "demand_outlook", "forecast_vs_runrate", "bom_cost_rollup", "work_order_status",
 }

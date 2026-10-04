@@ -71,7 +71,16 @@ bands, the Trade / Contract / Consumer mix, vendor count (72), and PO cadence.
 - The trailing-12-month window is now exactly 12 calendar months (it was 13: `-12 months` from a month-end).
 - The full 56.9B-row share is still scanned on every build (date-pruned to 24 months); sampling happens after the read.
 
-## Caveats
+## Competitor landscape (synthetic)
+
+Public peers commonly named alongside Visual Comfort in designer / decorative lighting
+(Hudson Valley, Hinkley, Kichler, Currey, Savoy House, Schonbek, Eurofase, WAC, Minka, Maxim-class,
+EU design imports). The demo builds a **$5.0B synthetic US decorative/designer set** so the
+calibrated VC ~$750M sits near **15% share**. Competitor revenues are Growjo/LinkedIn/IncFact
+midpoints or labelled assumptions (`app/competitors.py`). Family strength and region tilts are
+synthetic so the Market tab can rank **share expansion** plays (8% capture-rate assumption).
+Not win/loss CRM data.
+
 
 - These are third-party estimates about a private company; the revenue band alone spans $284M–$750M. The build sits at
   the top of that band because the 2021 transaction value supports it. `--volume-scale 0.5` reproduces the low end.

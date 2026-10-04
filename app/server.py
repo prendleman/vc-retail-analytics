@@ -14,6 +14,7 @@ from urllib.parse import parse_qs, urlparse
 
 from app import demo_auth
 from app import voice as voice_mod
+from app import competitors as competitors_mod
 from app.core import (
     DB,
     FAQ,
@@ -364,6 +365,20 @@ class Handler(BaseHTTPRequestHandler):
                         "mrp_exceptions",
                         "mrp_shortages",
                         "forecast_accuracy",
+                        "demand_outlook",
+                        "forecast_vs_runrate",
+                        "channel_share",
+                        "region_dealer_share",
+                        "share_opportunity",
+                        "gm_opportunity_usd",
+                        "discount_drag",
+                        "growth_momentum",
+                        "channel_growth",
+                        "competitor_landscape",
+                        "competitive_position",
+                        "competitor_family_share",
+                        "share_expansion",
+                        "region_expansion",
                         "bom_cost_rollup",
                         "component_risk",
                         "work_order_status",
@@ -714,6 +729,17 @@ class Handler(BaseHTTPRequestHandler):
                         "vendor",
                         "realization",
                         "cover",
+                        "forecast",
+                        "demand",
+                        "share",
+                        "growth",
+                        "momentum",
+                        "discount",
+                        "gm",
+                        "outlook",
+                        "competitor",
+                        "competitive",
+                        "expansion",
                     )
                 ):
                     return self.send(
@@ -817,6 +843,13 @@ def main():
     if not a.db.exists():
         print("Seeding synthetic VC retail dealers + catalog...", flush=True)
         print(seed(a.db), flush=True)
+    else:
+        # Idempotent competitor landscape refresh (public-estimate calibrated)
+        _c = connect(a.db)
+        try:
+            competitors_mod.ensure_competitors(_c)
+        finally:
+            _c.close()
     server = ThreadingHTTPServer((a.host, a.port), Handler)
     server.dealer = a.dealer
     snowflake_on = a.enable_snowflake or a.backend == "snowflake" or snowflake_env_config() is not None

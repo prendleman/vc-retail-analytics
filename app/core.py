@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from app import supply_chain
+from app import competitors as competitors_mod
 
 ROOT = Path(__file__).resolve().parents[1]
 DB = ROOT / "data" / "demo.db"
@@ -445,6 +446,131 @@ METRICS = {
             ") ORDER BY score DESC"
         ),
     },
+    # --- Market & Growth (forecast · share proxies · GM levers · momentum) ---
+    "channel_share": {
+        "description": "Channel mix share of net sales (internal competitive structure across Trade / Consumer / Contract).",
+        "sql": (
+            "WITH tot AS (SELECT SUM(net_sales_cents) AS net_all FROM silver_facts {where}), "
+            "ch AS ("
+            "  SELECT channel, SUM(net_sales_cents) AS net_cents, SUM(units_sold) AS units_sold, SUM(margin_cents) AS margin_cents "
+            "  FROM silver_facts {where} GROUP BY channel"
+            ") "
+            "SELECT c.channel, ROUND(c.net_cents/100.0, 0) AS net_sales, c.units_sold, "
+            "ROUND(100.0 * c.net_cents / NULLIF(t.net_all, 0), 1) AS share_pct, "
+            "ROUND(100.0 * c.margin_cents / NULLIF(c.net_cents, 0), 1) AS margin_pct "
+            "FROM ch c CROSS JOIN tot t ORDER BY share_pct DESC"
+        ),
+    },
+    "region_dealer_share": {
+        "description": "Dealer share of regional net sales (where we are taking / losing share vs peer dealers).",
+        "sql": (
+            "WITH dealer_sales AS ("
+            "  SELECT sf.dealer_id, d.name, d.city, d.region, d.channel_focus, "
+            "  SUM(sf.net_sales_cents)/100.0 AS net_sales "
+            "  FROM silver_facts sf JOIN dealers d ON d.dealer_id = sf.dealer_id "
+            "  {where_sf} GROUP BY sf.dealer_id, d.name, d.city, d.region, d.channel_focus"
+            "), region_tot AS ("
+            "  SELECT region, SUM(net_sales) AS region_sales FROM dealer_sales GROUP BY region"
+            ") "
+            "SELECT ds.dealer_id, ds.name, ds.city, ds.region, ds.channel_focus, "
+            "ROUND(ds.net_sales, 0) AS net_sales, ROUND(rt.region_sales, 0) AS region_sales, "
+            "ROUND(100.0 * ds.net_sales / NULLIF(rt.region_sales, 0), 1) AS share_pct "
+            "FROM dealer_sales ds JOIN region_tot rt ON rt.region = ds.region "
+            "ORDER BY ds.region, share_pct DESC"
+        ),
+    },
+    "share_opportunity": {
+        "description": "Competitive share gap: $ to close to region peer average (whitespace dealers — carve into peer share).",
+        "sql": (
+            "WITH dealer_sales AS ("
+            "  SELECT sf.dealer_id, d.name, d.city, d.region, d.territory_id, "
+            "  SUM(sf.net_sales_cents)/100.0 AS net_sales "
+            "  FROM silver_facts sf JOIN dealers d ON d.dealer_id = sf.dealer_id "
+            "  {where_sf} GROUP BY sf.dealer_id, d.name, d.city, d.region, d.territory_id"
+            "), region_avg AS ("
+            "  SELECT region, AVG(net_sales) AS avg_sales FROM dealer_sales GROUP BY region"
+            ") "
+            "SELECT ds.dealer_id, ds.name, ds.city, ds.region, ds.territory_id, "
+            "ROUND(ds.net_sales, 0) AS net_sales, ROUND(ra.avg_sales, 0) AS region_avg, "
+            "ROUND(ra.avg_sales - ds.net_sales, 0) AS share_gap_usd, "
+            "ROUND(100.0 * ds.net_sales / NULLIF(ra.avg_sales, 0), 1) AS of_peer_pct "
+            "FROM dealer_sales ds JOIN region_avg ra ON ra.region = ds.region "
+            "WHERE ds.net_sales < ra.avg_sales "
+            "ORDER BY share_gap_usd DESC LIMIT 40"
+        ),
+    },
+    "gm_opportunity_usd": {
+        "description": "Gross-margin lift opportunity ($): close half the family margin gap to portfolio average.",
+        "sql": (
+            "WITH port AS ("
+            "  SELECT SUM(net_sales_cents) AS net_all, "
+            "  100.0 * SUM(margin_cents) / NULLIF(SUM(net_sales_cents), 0) AS port_margin_pct "
+            "  FROM silver_facts {where}"
+            "), fam AS ("
+            "  SELECT family, SUM(net_sales_cents) AS net_cents, SUM(margin_cents) AS margin_cents, "
+            "  100.0 * SUM(margin_cents) / NULLIF(SUM(net_sales_cents), 0) AS margin_pct "
+            "  FROM silver_facts {where} GROUP BY family"
+            ") "
+            "SELECT f.family, ROUND(f.net_cents/100.0, 0) AS net_sales, ROUND(f.margin_pct, 1) AS margin_pct, "
+            "ROUND(p.port_margin_pct, 1) AS portfolio_margin_pct, "
+            "ROUND(f.margin_pct - p.port_margin_pct, 1) AS margin_gap_pts, "
+            "ROUND(CASE WHEN f.margin_pct < p.port_margin_pct "
+            "  THEN 0.5 * (p.port_margin_pct - f.margin_pct) / 100.0 * f.net_cents / 100.0 "
+            "  ELSE 0 END, 0) AS gm_lift_usd "
+            "FROM fam f CROSS JOIN port p "
+            "ORDER BY gm_lift_usd DESC, margin_gap_pts ASC"
+        ),
+    },
+    "discount_drag": {
+        "description": "Discount drag vs list ($): unrealized ASP by family — price lever to move GM.",
+        "sql": (
+            "SELECT sf.family, "
+            "ROUND(SUM(sf.units_sold * p.list_price_cents)/100.0, 0) AS list_sales, "
+            "ROUND(SUM(sf.net_sales_cents)/100.0, 0) AS net_sales, "
+            "ROUND(SUM(sf.units_sold * p.list_price_cents - sf.net_sales_cents)/100.0, 0) AS discount_drag_usd, "
+            "ROUND(AVG(1.0 * sf.net_sales_cents / NULLIF(sf.units_sold, 0) / NULLIF(p.list_price_cents, 0)), 3) AS realization "
+            "FROM silver_facts sf JOIN products p ON p.sku_id = sf.sku_id "
+            "{where_sf} GROUP BY sf.family ORDER BY discount_drag_usd DESC"
+        ),
+    },
+    "growth_momentum": {
+        "description": "Growth momentum by family: trailing 6 months vs prior 6 (accelerating / decelerating).",
+        "sql": (
+            "WITH m AS ("
+            "  SELECT family, month, SUM(net_sales_cents) AS net_cents "
+            "  FROM silver_monthly {where} GROUP BY family, month"
+            "), agg AS ("
+            "  SELECT family, "
+            "  SUM(CASE WHEN month > '2026-03' AND month <= '2026-09' THEN net_cents ELSE 0 END) AS recent_6m, "
+            "  SUM(CASE WHEN month > '2025-09' AND month <= '2026-03' THEN net_cents ELSE 0 END) AS prior_6m "
+            "  FROM m GROUP BY family"
+            ") "
+            "SELECT family, ROUND(recent_6m/100.0, 0) AS recent_6m_sales, ROUND(prior_6m/100.0, 0) AS prior_6m_sales, "
+            "ROUND(100.0 * (recent_6m - prior_6m) / NULLIF(prior_6m, 0), 1) AS momentum_pct, "
+            "CASE WHEN recent_6m > prior_6m * 1.05 THEN 'Accelerating' "
+            "WHEN recent_6m < prior_6m * 0.95 THEN 'Decelerating' ELSE 'Stable' END AS accel_flag "
+            "FROM agg ORDER BY momentum_pct DESC"
+        ),
+    },
+    "channel_growth": {
+        "description": "Channel growth momentum: trailing 6 vs prior 6 net sales (where growth is accelerating).",
+        "sql": (
+            "WITH m AS ("
+            "  SELECT channel, month, SUM(net_sales_cents) AS net_cents "
+            "  FROM silver_monthly {where} GROUP BY channel, month"
+            "), agg AS ("
+            "  SELECT channel, "
+            "  SUM(CASE WHEN month > '2026-03' AND month <= '2026-09' THEN net_cents ELSE 0 END) AS recent_6m, "
+            "  SUM(CASE WHEN month > '2025-09' AND month <= '2026-03' THEN net_cents ELSE 0 END) AS prior_6m "
+            "  FROM m GROUP BY channel"
+            ") "
+            "SELECT channel, ROUND(recent_6m/100.0, 0) AS recent_6m_sales, ROUND(prior_6m/100.0, 0) AS prior_6m_sales, "
+            "ROUND(100.0 * (recent_6m - prior_6m) / NULLIF(prior_6m, 0), 1) AS momentum_pct, "
+            "CASE WHEN recent_6m > prior_6m * 1.05 THEN 'Accelerating' "
+            "WHEN recent_6m < prior_6m * 0.95 THEN 'Decelerating' ELSE 'Stable' END AS accel_flag "
+            "FROM agg ORDER BY momentum_pct DESC"
+        ),
+    },
 }
 
 FAQ = [
@@ -511,11 +637,20 @@ METRIC_PHRASES = {
     "show rep grades": "rep_grade",
     "show vendor scorecard": "vendor_scorecard",
     "show vendor otif": "vendor_otif",
+    "show channel share": "channel_share",
+    "show region share": "region_dealer_share",
+    "show share opportunity": "share_opportunity",
+    "show gm opportunity": "gm_opportunity_usd",
+    "show discount drag": "discount_drag",
+    "show growth momentum": "growth_momentum",
+    "show channel growth": "channel_growth",
 }
 
-# Sales-org, procurement, inventory, and MRP metrics share the same governed contract.
+# Sales-org, procurement, inventory, MRP, and competitor metrics share the governed contract.
 METRICS.update(supply_chain.SC_METRICS)
+METRICS.update(competitors_mod.COMP_METRICS)
 METRIC_PHRASES.update(supply_chain.SC_PHRASES)
+METRIC_PHRASES.update(competitors_mod.COMP_PHRASES)
 
 
 def connect(path=DB):
@@ -930,6 +1065,8 @@ def seed(path=DB, dealers=50, skus=200):
     c.commit()
     result = ingest(c, es)
     result["supply_chain"] = supply_chain.seed_supply_chain(c, random.Random(7), LEAD_MIDPOINT_DAYS)
+    competitors_mod.ensure_competitors(c)
+    result["competitors"] = len(competitors_mod.COMPETITORS)
     c.close()
     return result
 
@@ -954,6 +1091,9 @@ def metric_sql(metric, dealer=None, dialect="sqlite"):
             if dealer
             else ""
         ),
+        "{competitors_cte}": competitors_mod.competitors_cte(),
+        "{family_strength_cte}": competitors_mod.family_strength_cte(),
+        "{region_tilt_cte}": competitors_mod.region_tilt_cte(),
     }
     for key, val in replacements.items():
         sql = sql.replace(key, val)
@@ -1035,6 +1175,20 @@ METRIC_ALIASES = [
     (re.compile(r"\bmrp exceptions?\b|\bmrp\b"), "mrp_exceptions"),
     (re.compile(r"\bshortages?\b|\bexpedite\b"), "mrp_shortages"),
     (re.compile(r"\bforecast accuracy\b|\bwmape\b|\bforecast bias\b"), "forecast_accuracy"),
+    (re.compile(r"\bdemand outlook\b|\bmarket forecast\b|\bforward (demand|forecast)\b|\bnext (quarter|three months?) (demand|forecast)\b"), "demand_outlook"),
+    (re.compile(r"\bforecast vs run[- ]?rate\b|\brun[- ]?rate\b|\bbuild ahead\b|\bsoft outlook\b"), "forecast_vs_runrate"),
+    (re.compile(r"\bchannel share\b|\bmix share\b|\bshare by channel\b"), "channel_share"),
+    (re.compile(r"\bregion(al)? (dealer )?share\b|\bdealer share\b|\bmarket share\b|\bshare of (the )?region\b"), "region_dealer_share"),
+    (re.compile(r"\bshare opportunity\b|\bcarve (into|out)\b|\btake share\b|\bcompetitive (share|gap)\b"), "share_opportunity"),
+    (re.compile(r"\bgm (opportunity|lift)\b|\bmargin (opportunity|lift|dollars?)\b|\bmove (the )?needle on (gm|margin|gross margin)\b|\bgross margin (opportunity|lift)\b"), "gm_opportunity_usd"),
+    (re.compile(r"\bdiscount drag\b|\bunrealized (asp|price)\b|\bprice (leak|lever)\b"), "discount_drag"),
+    (re.compile(r"\bgrowth momentum\b|\baccelerat(e|ing) growth\b|\bdecelerat|\bmomentum by family\b"), "growth_momentum"),
+    (re.compile(r"\bchannel growth\b|\bgrowth by channel\b"), "channel_growth"),
+    (re.compile(r"\bcompetitor landscape\b|\bwho are (our |the )?competitors\b|\bcompetitive set\b"), "competitor_landscape"),
+    (re.compile(r"\bcompetitive position\b|\bvs competitors?\b|\bagainst competitors?\b"), "competitive_position"),
+    (re.compile(r"\bcompetitor family\b|\bcompetitors? by family\b"), "competitor_family_share"),
+    (re.compile(r"\bshare expansion\b|\bexpansion opportunit|\bwin (competitor )?share\b|\binto competitor share\b|\bexpand into (their|competitor)"), "share_expansion"),
+    (re.compile(r"\bregion(al)? expansion\b|\bcompetitor stronghold\b"), "region_expansion"),
     (re.compile(r"\bbom cost\b|\bmaterial cost\b|\bstandard cost\b"), "bom_cost_rollup"),
     (re.compile(r"\bcomponent risk\b|\blong[- ]lead component"), "component_risk"),
     (re.compile(r"\bwork orders?\b"), "work_order_status"),

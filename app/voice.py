@@ -199,6 +199,70 @@ def speakable_metric(name: str, rows: list[dict], description: str = "") -> str:
             f"covering {_num(r0.get('skus'))} SKUs."
         )
 
+    if name == "demand_outlook" and r0.get("family"):
+        months = sorted({str(r.get("month")) for r in rows if r.get("month")})
+        top = rows[0]
+        return (
+            f"Demand outlook for {', '.join(months[:3])}: {top.get('family')} leads at "
+            f"{_num(top.get('forecast_units'))} forecast units. {len(rows)} family-month rows."
+        )
+
+    if name == "forecast_vs_runrate" and r0.get("family"):
+        return (
+            f"Forecast versus run-rate: {r0.get('family')} is {_pct(r0.get('outlook_gap_pct'))} "
+            f"vs trailing three months — signal {r0.get('signal')}."
+        )
+
+    if name == "share_opportunity" and r0.get("name"):
+        return (
+            f"Largest share gap: {r0.get('name')} is {_money(r0.get('share_gap_usd'))} below "
+            f"region peer average at {_pct(r0.get('of_peer_pct'))} of peer."
+        )
+
+    if name == "gm_opportunity_usd" and r0.get("family"):
+        lift = next((r for r in rows if (r.get("gm_lift_usd") or 0) > 0), r0)
+        return (
+            f"Gross-margin opportunity: closing half the gap on {lift.get('family')} "
+            f"is about {_money(lift.get('gm_lift_usd'))} of lift."
+        )
+
+    if name == "growth_momentum" and r0.get("family"):
+        return (
+            f"Growth momentum: {r0.get('family')} is {_pct(r0.get('momentum_pct'))} "
+            f"trailing six versus prior six — {r0.get('accel_flag')}."
+        )
+
+    if name == "channel_share" and r0.get("channel"):
+        bits = [f"{r.get('channel')} {_pct(r.get('share_pct'))}" for r in rows[:3]]
+        return "Channel share of net sales: " + "; ".join(bits) + "."
+
+    if name == "discount_drag" and r0.get("family"):
+        return (
+            f"Discount drag: {r0.get('family')} leaves {_money(r0.get('discount_drag_usd'))} "
+            f"on the table versus list at realization {_num(r0.get('realization'))}."
+        )
+
+    if name == "competitor_landscape" and r0.get("name"):
+        peers = [r for r in rows if not r.get("is_us")][:2]
+        bits = [f"{p.get('name')} {_pct(p.get('share_pct'))}" for p in peers]
+        us = next((r for r in rows if r.get("is_us")), r0)
+        return (
+            f"Decorative set: we are modeled at {_pct(us.get('share_pct'))}. "
+            f"Named peers include " + "; ".join(bits) + "."
+        )
+
+    if name == "share_expansion" and r0.get("competitor"):
+        return (
+            f"Top share-expansion play: {r0.get('family')} versus {r0.get('competitor')} "
+            f"for about {_num(r0.get('expansion_m'))} million dollars at an eight percent capture rate — {r0.get('play')}."
+        )
+
+    if name == "competitive_position" and r0.get("name"):
+        return (
+            f"Competitive position: {r0.get('name')} at about {_num(r0.get('revenue_m'))} million dollars "
+            f"estimated revenue, {_pct(r0.get('share_pct'))} of the synthetic set."
+        )
+
     # Generic: mention first numeric-looking fields
     keys = [k for k in r0.keys() if k not in ("sql",)][:4]
     bits = []

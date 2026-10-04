@@ -173,6 +173,19 @@ function insightCards(items) {
 
 function buildInsights(section, a) {
   const items = [];
+  if (section === 'market') {
+    const outlook = (a.forecast_vs_runrate || []).filter(r => r.signal === 'Build ahead')[0]
+      || (a.forecast_vs_runrate || [])[0];
+    if (outlook) items.push({ title: 'Demand call', body: `${outlook.family}: next-3-mo forecast ${pct(outlook.outlook_gap_pct)} vs run-rate (${outlook.signal}).`, tone: outlook.signal === 'Soft outlook' ? 'warn' : 'good' });
+    const exp = (a.share_expansion || [])[0];
+    if (exp) items.push({ title: 'Take their share', body: `${exp.family} vs ${exp.competitor}: ~$${num(exp.expansion_m, 1)}M expansion (${exp.play}).`, tone: 'good' });
+    const share = (a.share_opportunity || [])[0];
+    if (share) items.push({ title: 'Dealer whitespace', body: `${share.name}: ${money(share.share_gap_usd)} gap to region peer (${pct(share.of_peer_pct)} of average).`, tone: 'warn' });
+    const gm = (a.gm_opportunity_usd || []).filter(r => (r.gm_lift_usd || 0) > 0)[0];
+    if (gm) items.push({ title: 'GM needle', body: `${gm.family}: close half the margin gap → ~${money(gm.gm_lift_usd)} lift (${num(gm.margin_gap_pts, 1)} pts below portfolio).`, tone: '' });
+    const mom = (a.growth_momentum || [])[0];
+    if (mom) items.push({ title: mom.accel_flag || 'Momentum', body: `${mom.family}: ${pct(mom.momentum_pct)} trailing-6 vs prior-6.`, tone: mom.accel_flag === 'Decelerating' ? 'warn' : 'good' });
+  }
   if (section === 'core' || section === 'margin') {
     const ch = [...(a.margin_pct || [])].sort((x, y) => (x.margin_pct || 0) - (y.margin_pct || 0));
     if (ch[0]) items.push({ title: 'Thinnest channel', body: `${ch[0].channel} at ${pct(ch[0].margin_pct)} margin — volume may be subsidizing mix.`, tone: 'warn' });
@@ -240,6 +253,25 @@ function buildInsights(section, a) {
 }
 
 const SECTIONS = {
+  market: {
+    blurb: 'Forecast · competitors · share expansion · GM · growth',
+    panels: [
+      { title: 'Competitor landscape (public-estimate)', key: 'competitor_landscape', chart: { label: 'name', value: 'share_pct', pct: true } },
+      { title: 'Competitive position vs us', key: 'competitive_position', chart: { label: 'name', value: 'vs_us', digits: 2 } },
+      { title: 'Share expansion into competitors', key: 'share_expansion', chart: { label: 'competitor', value: 'expansion_m', digits: 1 } },
+      { title: 'Regional competitor strongholds', key: 'region_expansion', chart: { label: 'competitor', value: 'expansion_m', digits: 1 } },
+      { title: 'Competitor $ by family', key: 'competitor_family_share' },
+      { title: 'Demand outlook (next 1–3 mo)', key: 'demand_outlook', chart: { label: 'family', value: 'forecast_units' } },
+      { title: 'Forecast vs run-rate', key: 'forecast_vs_runrate', chart: { label: 'family', value: 'outlook_gap_pct', pct: true } },
+      { title: 'Channel share', key: 'channel_share', chart: { label: 'channel', value: 'share_pct', pct: true } },
+      { title: 'Dealer share of region', key: 'region_dealer_share' },
+      { title: 'Peer whitespace $', key: 'share_opportunity', chart: { label: 'name', value: 'share_gap_usd', money: true } },
+      { title: 'GM lift opportunity ($)', key: 'gm_opportunity_usd', chart: { label: 'family', value: 'gm_lift_usd', money: true } },
+      { title: 'Discount drag vs list', key: 'discount_drag', chart: { label: 'family', value: 'discount_drag_usd', money: true } },
+      { title: 'Growth momentum by family', key: 'growth_momentum', chart: { label: 'family', value: 'momentum_pct', pct: true } },
+      { title: 'Channel growth', key: 'channel_growth', chart: { label: 'channel', value: 'momentum_pct', pct: true } },
+    ],
+  },
   core: {
     blurb: 'Channel · family · region · stock risk',
     panels: [
@@ -316,7 +348,7 @@ const SECTIONS = {
 };
 
 let analyticsCache = null;
-let analyticsSection = 'core';
+let analyticsSection = 'market';
 
 function showTab(name) {
   document.querySelectorAll('.tab').forEach(el => { el.hidden = el.id !== name; });
@@ -490,6 +522,28 @@ function metricInsight(name, rows) {
   if (name === 'forecast_accuracy' && r0.family) {
     return `Worst WMAPE: ${r0.family} at ${pct(r0.wmape_pct)} (bias ${pct(r0.bias_pct)}).`;
   }
+  if (name === 'demand_outlook' && r0.family) {
+    return `Outlook: ${r0.family} · ${num(r0.forecast_units)} forecast units in ${r0.month}.`;
+  }
+  if (name === 'forecast_vs_runrate' && r0.family) {
+    return `${r0.family}: forecast ${pct(r0.outlook_gap_pct)} vs run-rate — ${r0.signal}.`;
+  }
+  if (name === 'share_opportunity' && r0.name) {
+    return `${r0.name}: ${money(r0.share_gap_usd)} to peer average (${pct(r0.of_peer_pct)} of peer).`;
+  }
+  if (name === 'gm_opportunity_usd' && r0.family) {
+    const hit = rows.find(r => (r.gm_lift_usd || 0) > 0) || r0;
+    return `${hit.family}: ~${money(hit.gm_lift_usd)} GM lift if half the margin gap closes.`;
+  }
+  if (name === 'growth_momentum' && r0.family) {
+    return `${r0.family}: ${pct(r0.momentum_pct)} momentum (${r0.accel_flag}).`;
+  }
+  if (name === 'channel_share' && r0.channel) {
+    return `Largest channel share: ${r0.channel} at ${pct(r0.share_pct)}.`;
+  }
+  if (name === 'discount_drag' && r0.family) {
+    return `${r0.family}: ${money(r0.discount_drag_usd)} discount drag vs list.`;
+  }
   if (name === 'rep_attainment' && r0.rep) {
     return `${r0.quarter}: ${r0.rep} at ${pct(r0.attainment_pct)} of quota.`;
   }
@@ -519,14 +573,25 @@ function renderAsk(data) {
       vendor_otif_detail: ['vendor', 'otif_pct'],
       vendor_concentration: ['vendor', 'share_pct'],
       forecast_accuracy: ['family', 'wmape_pct'],
+      demand_outlook: ['family', 'forecast_units'],
+      forecast_vs_runrate: ['family', 'outlook_gap_pct'],
+      channel_share: ['channel', 'share_pct'],
+      share_opportunity: ['name', 'share_gap_usd'],
+      gm_opportunity_usd: ['family', 'gm_lift_usd'],
+      discount_drag: ['family', 'discount_drag_usd'],
+      growth_momentum: ['family', 'momentum_pct'],
+      channel_growth: ['channel', 'momentum_pct'],
       inbound_pipeline: ['month', 'on_order_value'],
     };
     const ck = chartKeys[data.metric];
     let viz = '';
     if (ck) {
-      const opts = ck[1].includes('pct') || ck[1] === 'score' || ck[1] === 'composite'
-        ? (ck[1].includes('pct') ? { pct: true } : { digits: 1 })
-        : { money: true };
+      const moneyish = /sales|value|usd|drag|lift|spend|quota|freight/.test(ck[1]) && !ck[1].includes('pct');
+      const opts = ck[1].includes('pct')
+        ? { pct: true }
+        : (ck[1] === 'score' || ck[1] === 'composite' || ck[1] === 'forecast_units'
+          ? { digits: 0 }
+          : (moneyish ? { money: true } : { digits: 1 }));
       viz = barChart(data.rows, ck[0], ck[1], opts);
     }
     return `<div class="ask-card">`
@@ -578,8 +643,26 @@ let voiceAudio = null;
 let mediaRecorder = null;
 let voiceEnabled = false;
 
+/** Continuous listen session (Assistant Mic). */
+let listenLive = false;
+let listenStream = null;
+let listenCtx = null;
+let listenRaf = null;
+let listenBusy = false; // STT / Snowflake / TTS in flight
+let utterChunks = [];
+let utterMime = 'audio/webm';
+let utterHadSpeech = false;
+let utterSilentMs = 0;
+let utterSpeechMs = 0;
+let utterStartedAt = 0;
+
 /** Tiny silent WAV — used to unlock HTMLAudioElement under a user gesture before async work. */
 const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+
+const LISTEN_SPEECH_RMS = 0.018;
+const LISTEN_SILENCE_MS = 1100;
+const LISTEN_MIN_SPEECH_MS = 350;
+const LISTEN_MAX_UTTER_MS = 20000;
 
 function stopVoiceAudio() {
   if (voiceAudio) {
@@ -620,6 +703,12 @@ async function playSpoken(text) {
     // Gesture lost after await — offer explicit replay via Speak.
     throw new Error('Tap Speak to hear the brief (browser blocked autoplay after loading).');
   }
+  await new Promise((resolve) => {
+    const done = () => { voiceAudio.removeEventListener('ended', done); resolve(); };
+    voiceAudio.addEventListener('ended', done);
+    // Safety if ended never fires
+    setTimeout(done, Math.max(8000, (text.length / 12) * 1000));
+  });
 }
 
 /** Voice runs only on Snowflake — switch session + refresh KPIs without eating the click gesture for audio. */
@@ -732,45 +821,216 @@ async function voiceAsk(question) {
   return data;
 }
 
-async function toggleMic() {
+function setMicUi(state) {
   const btn = document.getElementById('mic-ask');
+  if (!btn) return;
+  if (state === 'off') {
+    btn.classList.remove('recording');
+    btn.textContent = 'Mic';
+    btn.title = 'Start continuous listening — speak a metric question; answers from Snowflake';
+  } else if (state === 'listening') {
+    btn.classList.add('recording');
+    btn.textContent = 'Listening…';
+    btn.title = 'Listening continuously — click to stop';
+  } else if (state === 'busy') {
+    btn.classList.add('recording');
+    btn.textContent = 'Thinking…';
+    btn.title = 'Querying Snowflake / speaking — click to stop';
+  }
+}
+
+function listenRms(analyser) {
+  const buf = new Float32Array(analyser.fftSize);
+  analyser.getFloatTimeDomainData(buf);
+  let sum = 0;
+  for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+  return Math.sqrt(sum / buf.length);
+}
+
+function stopContinuousListen({ keepBtn } = {}) {
+  listenLive = false;
+  if (listenRaf) { cancelAnimationFrame(listenRaf); listenRaf = null; }
+  try {
+    if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
+  } catch (_) {}
+  mediaRecorder = null;
+  if (listenStream) {
+    listenStream.getTracks().forEach(t => t.stop());
+    listenStream = null;
+  }
+  if (listenCtx) {
+    try { listenCtx.close(); } catch (_) {}
+    listenCtx = null;
+  }
+  utterChunks = [];
+  utterHadSpeech = false;
+  listenBusy = false;
+  if (!keepBtn) setMicUi('off');
+}
+
+function startUtteranceRecorder() {
+  if (!listenStream || !listenLive || listenBusy) return;
+  if (mediaRecorder && mediaRecorder.state === 'recording') return;
+  utterChunks = [];
+  utterHadSpeech = false;
+  utterSilentMs = 0;
+  utterSpeechMs = 0;
+  utterStartedAt = performance.now();
+  utterMime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
+  try {
+    mediaRecorder = new MediaRecorder(listenStream, { mimeType: utterMime });
+  } catch (_) {
+    mediaRecorder = new MediaRecorder(listenStream);
+    utterMime = mediaRecorder.mimeType || 'audio/webm';
+  }
+  mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size) utterChunks.push(e.data); };
+  mediaRecorder.onstop = () => { /* handled by finishUtterance */ };
+  mediaRecorder.start(250);
+}
+
+async function finishUtteranceAndAsk() {
+  if (listenBusy || !listenLive) return;
+  listenBusy = true;
+  setMicUi('busy');
+  const out = document.getElementById('out-proposed');
+  const rec = mediaRecorder;
+  mediaRecorder = null;
+  const chunks = utterChunks.slice();
+  utterChunks = [];
+  const mime = utterMime;
+  const hadSpeech = utterHadSpeech && utterSpeechMs >= LISTEN_MIN_SPEECH_MS;
+  utterHadSpeech = false;
+
+  if (rec && rec.state === 'recording') {
+    await new Promise((resolve) => {
+      rec.addEventListener('stop', resolve, { once: true });
+      try { rec.stop(); } catch (_) { resolve(); }
+    });
+  }
+  // Flush final chunk if ondataavailable raced
+  await new Promise(r => setTimeout(r, 80));
+
+  if (!listenLive) { listenBusy = false; return; }
+
+  if (!hadSpeech || !chunks.length) {
+    listenBusy = false;
+    if (listenLive) {
+      setMicUi('listening');
+      out.textContent = 'Listening… ask a metric question when ready.';
+    }
+    return;
+  }
+
+  const blob = new Blob(chunks, { type: mime });
+  if (!blob.size) {
+    listenBusy = false;
+    if (listenLive) setMicUi('listening');
+    return;
+  }
+
+  out.textContent = 'Transcribing…';
+  try {
+    const fd = new FormData();
+    fd.append('file', blob, 'clip.webm');
+    const res = await fetch('/api/stt', { method: 'POST', body: fd });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'STT failed');
+    const text = (data.text || '').trim();
+    if (!text) throw new Error('No speech detected — try again a bit louder.');
+    // Ignore echo of our own TTS / tiny noise
+    if (text.length < 3) throw new Error('Heard too little — ask again.');
+    document.getElementById('q-proposed').value = text;
+    out.textContent = `Heard: “${text}”\nAsking Snowflake…`;
+    await voiceAsk(text);
+  } catch (e) {
+    out.textContent = JSON.stringify({ error: e.message }, null, 2);
+    // Brief pause so the error is readable, then keep listening
+    await new Promise(r => setTimeout(r, 1200));
+  } finally {
+    listenBusy = false;
+    if (listenLive) {
+      setMicUi('listening');
+      const panel = document.getElementById('out-proposed');
+      if (panel && !panel.textContent.startsWith('Heard:')) {
+        /* keep rendered ask card or error */
+      }
+      // Soft status under result: append listen hint only if still live
+      const hint = document.getElementById('voice-status');
+      if (hint) hint.textContent = 'Listening continuously · speak another metric question, or click Mic to stop.';
+    } else {
+      setMicUi('off');
+    }
+  }
+}
+
+function tickListenVad(analyser, lastTs) {
+  if (!listenLive) return;
+  const now = performance.now();
+  const dt = Math.min(100, now - (lastTs || now));
+  if (!listenBusy) {
+    const rms = listenRms(analyser);
+    const speaking = rms >= LISTEN_SPEECH_RMS;
+    if (speaking) {
+      if (!mediaRecorder || mediaRecorder.state !== 'recording') startUtteranceRecorder();
+      utterHadSpeech = true;
+      utterSpeechMs += dt;
+      utterSilentMs = 0;
+    } else if (mediaRecorder && mediaRecorder.state === 'recording') {
+      utterSilentMs += dt;
+      const tooLong = (now - utterStartedAt) > LISTEN_MAX_UTTER_MS;
+      if ((utterHadSpeech && utterSpeechMs >= LISTEN_MIN_SPEECH_MS && utterSilentMs >= LISTEN_SILENCE_MS) || tooLong) {
+        finishUtteranceAndAsk();
+      }
+    }
+  }
+  listenRaf = requestAnimationFrame(() => tickListenVad(analyser, now));
+}
+
+async function toggleMic() {
+  const out = document.getElementById('out-proposed');
   if (!voiceEnabled) {
     alert('Voice is not configured on this host.');
     return;
   }
-  if (mediaRecorder && mediaRecorder.state === 'recording') {
-    mediaRecorder.stop();
+  if (listenLive) {
+    stopContinuousListen();
+    out.textContent = 'Listening stopped.';
+    const hint = document.getElementById('voice-status');
+    if (hint) {
+      hint.textContent = 'Voice → Snowflake only · continuous Mic · speak a metric question → spoken answer.';
+    }
     return;
   }
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  const chunks = [];
-  const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
-  mediaRecorder = new MediaRecorder(stream, { mimeType: mime });
-  mediaRecorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
-  mediaRecorder.onstop = async () => {
-    btn.classList.remove('recording');
-    btn.textContent = 'Mic';
-    stream.getTracks().forEach(t => t.stop());
-    const blob = new Blob(chunks, { type: mime });
-    const fd = new FormData();
-    fd.append('file', blob, 'clip.webm');
-    const out = document.getElementById('out-proposed');
-    out.textContent = 'Transcribing…';
-    try {
-      const res = await fetch('/api/stt', { method: 'POST', body: fd });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'STT failed');
-      const text = (data.text || '').trim();
-      if (!text) throw new Error('No speech detected');
-      document.getElementById('q-proposed').value = text;
-      await voiceAsk(text);
-    } catch (e) {
-      out.textContent = JSON.stringify({ error: e.message }, null, 2);
-    }
-  };
-  mediaRecorder.start();
-  btn.classList.add('recording');
-  btn.textContent = 'Stop';
+
+  listenStream = await navigator.mediaDevices.getUserMedia({
+    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+  });
+  listenCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (listenCtx.state === 'suspended') {
+    try { await listenCtx.resume(); } catch (_) {}
+  }
+  const source = listenCtx.createMediaStreamSource(listenStream);
+  const analyser = listenCtx.createAnalyser();
+  analyser.fftSize = 2048;
+  analyser.smoothingTimeConstant = 0.4;
+  source.connect(analyser);
+  // Do not connect to destination — avoid feedback / monitoring
+
+  listenLive = true;
+  listenBusy = false;
+  setMicUi('listening');
+  out.textContent = 'Listening continuously… ask something like “show margin percent”. I’ll answer from Snowflake when you pause.';
+  const hint = document.getElementById('voice-status');
+  if (hint) hint.textContent = 'Listening continuously · pause after your question · click Mic to stop.';
+
+  // Switch to Snowflake early under the same gesture window
+  try { await requireSnowflakeForVoice(); } catch (e) {
+    stopContinuousListen();
+    out.textContent = JSON.stringify({ error: e.message }, null, 2);
+    return;
+  }
+
+  tickListenVad(analyser, performance.now());
 }
 
 async function escalate() {
@@ -862,8 +1122,8 @@ async function boot() {
     if (!snowflakeOk) vs.textContent = 'Voice needs Snowflake on this host.';
     else if (!voiceEnabled) vs.textContent = 'Voice offline (ElevenLabs key not configured). Typed Snowflake asks still work.';
     else vs.textContent = health.cortex
-      ? 'Voice → Snowflake only · governed metrics, Cortex fallback for freer questions · spoken brief.'
-      : 'Voice → Snowflake only · governed metrics → spoken brief.';
+      ? 'Voice → Snowflake only · continuous Mic · governed metrics + Cortex · spoken answer.'
+      : 'Voice → Snowflake only · continuous Mic · governed metrics → spoken answer.';
   }
   document.getElementById('mic-ask').disabled = !(voiceEnabled && snowflakeOk);
   document.getElementById('speak-answer').disabled = true;

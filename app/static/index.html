@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/style.css?v=20261004a" />
+  <link rel="stylesheet" href="/style.css?v=20261004e" />
 </head>
 <body class="app">
   <header class="top">
@@ -51,9 +51,10 @@
     <section id="analytics" class="tab" hidden>
       <p class="eyebrow">Warehouse metrics</p>
       <h2>Retail analytics</h2>
-      <p class="fine">Insight callouts + charts + approved metric queries. Sections: Core · Margin · Season · Field · Supply · Procurement · Planning.</p>
+      <p class="fine">Insight callouts + charts + approved metric queries. Sections: Market · Core · Margin · Season · Field · Supply · Procurement · Planning.</p>
       <div class="subnav" id="analytics-subnav">
-        <button type="button" data-section="core" class="active">Core</button>
+        <button type="button" data-section="market" class="active">Market</button>
+        <button type="button" data-section="core">Core</button>
         <button type="button" data-section="margin">Margin</button>
         <button type="button" data-section="season">Season</button>
         <button type="button" data-section="field">Field</button>
@@ -76,11 +77,11 @@
         </div>
         <div>
           <h3>Analytics workflow (demonstrated)</h3>
-          <p class="fine" id="voice-status">Voice runs on Snowflake only — mic → governed metrics → spoken brief.</p>
-          <textarea id="q-proposed" rows="3" placeholder="e.g. show margin percent — or use the mic"></textarea>
+          <p class="fine" id="voice-status">Voice → Snowflake only · continuous Mic · speak a metric question → spoken answer.</p>
+          <textarea id="q-proposed" rows="3" placeholder="e.g. show margin percent — or click Mic and ask out loud"></textarea>
           <div class="voice-row">
             <button id="ask-proposed" type="button">Ask approved metric</button>
-            <button id="mic-ask" type="button" class="ghost" title="Speak a metric prompt">Mic</button>
+            <button id="mic-ask" type="button" class="ghost" title="Start continuous listening — speak a metric question; answers from Snowflake">Mic</button>
             <button id="speak-answer" type="button" class="ghost" title="Speak last warehouse brief" disabled>Speak</button>
             <button id="escalate" type="button" class="ghost">Escalate packet</button>
           </div>
@@ -90,6 +91,20 @@
       <details>
         <summary>Supported metric prompts (exact match)</summary>
         <ul>
+          <li>show competitor landscape</li>
+          <li>show competitive position</li>
+          <li>show share expansion</li>
+          <li>show region expansion</li>
+          <li>show competitor family share</li>
+          <li>show demand outlook</li>
+          <li>show forecast vs runrate</li>
+          <li>show channel share</li>
+          <li>show region share</li>
+          <li>show share opportunity</li>
+          <li>show gm opportunity</li>
+          <li>show discount drag</li>
+          <li>show growth momentum</li>
+          <li>show channel growth</li>
           <li>show portfolio</li>
           <li>show sales by channel / family / region</li>
           <li>show stock risk</li>
@@ -129,6 +144,6 @@
       <pre id="catalog-out" class="table"></pre>
     </section>
   </main>
-  <script src="/app.js?v=20261004a"></script>
+  <script src="/app.js?v=20261004e"></script>
 </body>
 </html>
