@@ -1,11 +1,13 @@
 # Private share — Cloudflare Tunnel + Access
 
-Permanent hostname: **https://vc.datasharkbi.com**  
-Always-on: Fly.io app `vc-retail-analytics` runs the demo + Cloudflare Tunnel (laptop not required).
+> **Teardown 2026-10-05:** Public demo `vc.datasharkbi.com` is offline. Tunnel, DNS, Access app, Fly origin, and Snowflake demo DB were removed. See `docs/UPDATE_2026-10-05_shutdown.md`. Steps below are historical.
+
+Permanent hostname was **https://vc.datasharkbi.com**  
+Always-on was Fly.io app `vc-retail-analytics` + Cloudflare Tunnel.
 
 Synthetic data only. Independent interview demo — not Visual Comfort production.
 
-## Invite Access guests (OTP allowlist)
+## Invite Access guests (OTP allowlist) — historical
 
 **Preferred (Zero Trust UI)** — API tokens on this account often cannot edit Access:
 
@@ -30,7 +32,7 @@ Demo logins:
 
 Owner OTP emails used in setup: `prendleman@aureaquantra.com` (+ `CLOUDFLARE_ACCESS_ALLOW_EMAIL` in `.env`).
 
-## One-time Cloudflare setup (already done)
+## One-time Cloudflare setup (historical)
 
 ```sh
 python3 scripts/cf_setup_permanent.py --allow-email you@example.com
@@ -38,17 +40,10 @@ python3 scripts/cf_setup_permanent.py --allow-email you@example.com
 
 Tunnel `vc-retail-demo` → DNS `vc.datasharkbi.com` → Access app.
 
-## Local fallback (optional)
+## Local only
 
 ```sh
-python3 -m app.server          # Terminal 1
-./scripts/share_private.sh     # Terminal 2 — only if Fly is down
+python3 -m app.server
 ```
 
-Prefer Fly always-on so the URL does not depend on your Mac.
-
-## Status (2026-10-02)
-
-- Tunnel + DNS active; Fly hosts origin + `cloudflared --url http://127.0.0.1:8770`
-- Unauthenticated `/` → `302` Cloudflare Access
-- After Access + hard-refresh → marketing / app with deep Analytics UI
+Do not recreate the VC public hostname unless intentional — FORTH Relief still uses `relief.datasharkbi.com` on the same Cloudflare account.

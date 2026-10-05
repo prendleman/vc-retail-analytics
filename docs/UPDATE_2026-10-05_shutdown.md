@@ -1,41 +1,41 @@
-# VC Retail Analytics — shutdown (2026-10-05)
+# VC Retail Analytics — full teardown (2026-10-05)
 
-**Context:** Janice Egenberg (HR, Visual Comfort) is not moving the interview process forward. Hosted demo spend is stopped. Repo and local code remain as a portfolio artifact.
+**Context:** Janice Egenberg (HR, Visual Comfort) is not moving the interview process forward. All hosted / cloud demo footprint for this project is removed. Repo remains as a local portfolio archive.
 
-## What was shut down
+## Destroyed / removed
 
 | Resource | Action | Result |
 | --- | --- | --- |
-| Fly.io app `vc-retail-analytics` | `flyctl apps destroy vc-retail-analytics --yes` | **Destroyed** — machine gone; `vc-retail-analytics.fly.dev` no longer resolves |
-| Fly secrets (tunnel token, Snowflake PAT, ElevenLabs, etc.) | Destroyed with the app | Gone |
-| Snowflake `VC_FLY_SVC` PAT `VC_FLY_READER` | `REMOVE PROGRAMMATIC ACCESS TOKEN` | **Removed** — hosted reader can no longer auth |
-| Snowflake warehouses `AQ_VC_RETAIL_WH` / `AQ_VC_BUILD_WH` | `ALTER … SUSPEND` | Already suspended (invalid state to suspend again) |
+| Fly.io `vc-retail-analytics` | `flyctl apps destroy --yes` | Gone (earlier today) |
+| Snowflake `VC_RETAIL_DEMO` | `DROP DATABASE … CASCADE` | Gone |
+| Snowflake `AQ_VC_RETAIL_WH` / `AQ_VC_BUILD_WH` | `DROP WAREHOUSE` | Gone |
+| Snowflake role `AQ_VC_READER` | `DROP ROLE` | Gone |
+| Snowflake users `VC_FLY_SVC`, `VC_DLR0001_SVC` | `DROP USER` | Gone |
+| Cloudflare Tunnel `vc-retail-demo` | `cloudflared tunnel delete -f` | Gone (FORTH `forth-relief-demo` kept) |
+| DNS `vc.datasharkbi.com` CNAME | Deleted via Zero Trust / dash session | Gone |
+| Access app **vc** | Deleted | Gone |
+| Access policy **Allowlist email** (`730821e2-…`) | Deleted | Gone |
+| Local tunnel cred `~/.cloudflared/ad9521c3-….json` | Removed | Gone |
 
-## Still in place (optional cleanup later)
+## Left intentionally
 
-| Resource | Status |
+| Resource | Why |
 | --- | --- |
-| DNS / Cloudflare Tunnel `vc-retail-demo` → `vc.datasharkbi.com` | Still configured; Access returns **302** with no healthy origin behind it |
-| Cloudflare Access allowlist (Tyler / Janice / Rahul / owner) | Unchanged — leaf dead |
-| Snowflake account data (TPC-DS build, RAP, evidence) | Intact in account; warehouses idle |
-| GitHub repo + local tree | Intact — portfolio / archive |
+| GitHub repo + local tree | Portfolio / archive |
+| FORTH Relief tunnel + `relief.datasharkbi.com` Access app | Separate project |
+| Cloudflare One-time PIN IdP | Shared Zero Trust org; may still serve FORTH |
+| Owner Cloudflare account | Unchanged |
 
-Optional later: delete Zero Trust app **vc**, remove tunnel DNS, drop `VC_FLY_SVC`, or delete the Snowflake demo DB if you want zero residual cloud footprint.
+## Verify
 
-## Process outcome
+- `vc-retail-analytics.fly.dev` — does not resolve  
+- `vc.datasharkbi.com` — no DNS record (stale resolvers may briefly show CF 530)  
+- Snowflake `SHOW … LIKE 'VC_%'` / `AQ_VC%` — empty  
 
-| Reviewer | Outcome |
-| --- | --- |
-| Tyler Rose | Signed in earlier; recruiter path |
-| Rahul Agarwal | Emailed 2026-10-04 with Lab/Market demo; no further product work |
-| Janice Egenberg | **Not moving forward** (2026-10-05) |
-
-## Local use (if you reopen)
+## Local archive only
 
 ```sh
-python3 -m app.server
-# optional laptop tunnel — do not recreate Fly unless intentional
-./scripts/share_private.sh
+python3 -m app.server   # SQLite seed only; no hosted Snowflake
 ```
 
-Snowflake toggle needs a fresh PAT if you ever host again (`docs/HOSTING.md`).
+Re-hosting would require recreating Fly, tunnel, DNS, Access, and a full Snowflake rebuild (`docs/SNOWFLAKE.md` / `docs/HOSTING.md` — historical).

@@ -3,7 +3,7 @@
 **Domain:** Visual Comfort–flavored lighting retail (independent interview demo)  
 **Scope:** Synthetic dealer sell-through with **margin depth, seasonality, salesperson grades, territories, materials planning, and vendor scorecards** — plus a governed assistant framed as an improvement over site FAQ/form/chat.  
 **Author:** Paul Rendleman  
-**Live demo:** https://vc.datasharkbi.com/ (Cloudflare Access OTP → hard-refresh → login)
+**Live demo:** offline as of 2026-10-05 (process closed; cloud footprint torn down — see `docs/UPDATE_2026-10-05_shutdown.md`). Local: `python3 -m app.server`.
 
 Synthetic data only. Not Visual Comfort production data. Not commissioned client work.
 

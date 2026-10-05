@@ -67,6 +67,6 @@ Interview Lab / Market / voice surface for `ragarwal@visualcomfort.com`.
 
 ## Closed — 2026-10-05
 
-Janice Egenberg (HR) is not moving Paul forward. Hosted Fly app destroyed; Snowflake Fly PAT revoked. See `docs/UPDATE_2026-10-05_shutdown.md`.
+Janice Egenberg (HR) is not moving Paul forward. **Full teardown** complete: Fly, Snowflake demo DB/WH/users/role, Cloudflare tunnel `vc-retail-demo`, DNS `vc.datasharkbi.com`, Access app **vc** + allowlist policy. FORTH Relief left intact. See `docs/UPDATE_2026-10-05_shutdown.md`.
 
 Nothing emailed from this task.
