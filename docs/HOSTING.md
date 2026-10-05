@@ -1,5 +1,7 @@
 # Always-on host (no laptop)
 
+> **Shutdown 2026-10-05:** Fly app `vc-retail-analytics` was destroyed. Public demo is offline. See `docs/UPDATE_2026-10-05_shutdown.md`. Steps below are historical / for a future re-host.
+
 FORTH Relief was also **local server + Cloudflare Tunnel** — it only looked “always on” while that machine was running.
 
 This project is set up for a **real always-on host**: Docker image runs the demo + `cloudflared` with a tunnel token so **https://vc.datasharkbi.com/** stays up without your Mac.

@@ -61,7 +61,12 @@ Interview Lab / Market / voice surface for `ragarwal@visualcomfort.com`.
 | Live Lab dry-run (Fly origin) | **PASS** — board + evals 20/20 + Cortex compare + scope + plan90 |
 | Market metrics on Snowflake | **PASS** — share expansion, competitor landscape, demand outlook, GM opportunity |
 | Deck / PDF / DEMO_SCRIPT | Updated for Lab · Market · voice (`e2b1cfd`, `9afbee1`) |
-| Access allowlist | Oct 2 **Confirmed permitted**; 2026-10-04 automation blocked by Cloudflare bot interstitial — **eyeball Zero Trust UI before send** |
-| Demo path | `docs/DEMO_SCRIPT.md` · `docs/UPDATE_2026-10-04_ready.md` |
+| Access allowlist | **Confirmed** 2026-10-04 ~3:40 PM CT — Zero Trust policy readback includes `ragarwal@visualcomfort.com` |
+| Demo path | `docs/DEMO_SCRIPT.md` · `docs/UPDATE_2026-10-04_access.md` |
+| Outreach | **Emailed** 2026-10-04 — waiting on Rahul’s feedback |
+
+## Closed — 2026-10-05
+
+Janice Egenberg (HR) is not moving Paul forward. Hosted Fly app destroyed; Snowflake Fly PAT revoked. See `docs/UPDATE_2026-10-05_shutdown.md`.
 
 Nothing emailed from this task.
