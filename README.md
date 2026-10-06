@@ -1,15 +1,17 @@
 # VC Retail Analytics
 
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 **Domain:** Visual Comfort–flavored lighting retail (independent interview demo)  
 **Scope:** Synthetic dealer sell-through with **margin depth, seasonality, salesperson grades, territories, materials planning, and vendor scorecards** — plus a governed assistant framed as an improvement over site FAQ/form/chat.  
 **Author:** Paul Rendleman  
-**Live demo:** offline as of 2026-10-05 (process closed; cloud footprint torn down — see `docs/UPDATE_2026-10-05_shutdown.md`). Local: `python3 -m app.server`.
+**Status:** Local portfolio archive. Hosted demo offline as of 2026-10-05 (process closed; cloud footprint torn down — see [`docs/UPDATE_2026-10-05_shutdown.md`](docs/UPDATE_2026-10-05_shutdown.md)).
 
 Synthetic data only. Not Visual Comfort production data. Not commissioned client work.
 
 ## Start in one command
 
-Requires Python 3.9+. Local mode uses only the standard library.
+Requires Python 3.9+. Local mode uses only the standard library — no cloud account required.
 
 ```sh
 python3 -m app.server
@@ -22,9 +24,9 @@ Open **http://127.0.0.1:8770** → Login → `/app`.
 | `operator` | `vc-demo` | Full Field / Supply — use for interview walkthrough |
 | `dlr-0001` / `dlr-0002` | `vc-demo` | Dealer-scoped session |
 
-**Hard-refresh** after deploy or first load if Analytics looks like plain text tables.
+**Hard-refresh** on first load if Analytics looks like plain text tables.
 
-**Snowflake-backed mode** (after cloud bootstrap): see `docs/SNOWFLAKE.md` — re-skins Snowflake's shared 10 TB TPC-DS dataset as the sales/inventory backbone — sized to Visual Comfort's public footprint (~$750M/yr, 75 showrooms + dealer network, ~31K SKUs, 4 DCs; `docs/VC_PUBLIC_CALIBRATION.md`) — and generates salespeople, vendors, POs/shipments/receipts, DC inventory, BOM, forecast, and MRP on top. Same schema and governed metric SQL as the local SQLite demo; heavy metrics read Gold. The hosted demo defaults to SQLite and offers a per-session **SQLite | Snowflake · 10 TB** switch in the header (`--enable-snowflake` locally, or `SNOWFLAKE_ACCOUNT/USER/PAT` env on a host — see `docs/HOSTING.md`).
+**Optional Snowflake mode:** if you bring your own Snowflake credentials, see [`docs/SNOWFLAKE.md`](docs/SNOWFLAKE.md). That path re-skins Snowflake's shared TPC-DS dataset as the sales/inventory backbone — sized to Visual Comfort's public footprint (~$750M/yr, 75 showrooms + dealer network, ~31K SKUs, 4 DCs; [`docs/VC_PUBLIC_CALIBRATION.md`](docs/VC_PUBLIC_CALIBRATION.md)) — and generates salespeople, vendors, POs/shipments/receipts, DC inventory, BOM, forecast, and MRP on top. Same schema and governed metric SQL as the local SQLite demo. Enable locally with `--enable-snowflake` or `SNOWFLAKE_ACCOUNT` / `USER` / `PAT` (see [`docs/HOSTING.md`](docs/HOSTING.md) for historical hosting notes). The default path is SQLite-only.
 
 ## What this demo shows
 
@@ -36,7 +38,7 @@ Open **http://127.0.0.1:8770** → Login → `/app`.
 - Bronze → Silver → Gold (+ monthly facts + vendor KPI)
 - Governed exact-match assistant (not an LLM) with insight + table + SQL trace
 - Today vs Proposed chatbot gap
-- Always-on public URL via Fly + Cloudflare Tunnel + Access
+- Local-first archive (prior Fly + Cloudflare hosted demo fully torn down)
 
 ## Interview framing
 
@@ -46,6 +48,5 @@ Open **http://127.0.0.1:8770** → Login → `/app`.
 | Site | https://www.visualcomfort.com |
 | Relationship | Independent synthetic interview prototype |
 | Walkthrough | [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) |
-| Access guests | `python3 scripts/cf_access_guests.py you@firm.com` |
 
-See **CURSOR_START_HERE.md**, **docs/CHATBOT_GAP.md**, **docs/SHARE_PRIVATE.md**.
+See **CURSOR_START_HERE.md**, **docs/CHATBOT_GAP.md**, and **docs/SHARE_PRIVATE.md** for walkthrough context.
